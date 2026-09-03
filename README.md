@@ -7,7 +7,7 @@ MVP de fidelidade por QR Code: a empresa cria uma campanha e QR Codes únicos; o
 - Página inicial e painel da empresa, responsivos e navegáveis.
 - Visualização de clientes, pontos, recompensas, métricas, QR Codes e personalização do cartão.
 - Página pública de resgate: `r/{codigo}`.
-- Modelo multiempresa no Supabase, com isolamento por organização (RLS).
+- Modelo multiempresa em PostgreSQL padrão, compatível com Render.
 - QR de uso único com token armazenado somente como hash SHA-256.
 - Procedimento atômico: uma única operação marca o QR como usado, registra o histórico, atualiza o saldo, libera recompensa e enfileira a atualização do passe.
 - Rotas de API para consultar, identificar o cliente no primeiro uso e resgatar um código.
@@ -22,13 +22,14 @@ npm run dev
 
 Abra `http://localhost:3000/dashboard`.
 
-## Configurar o banco
+## Configurar o banco na Render
 
-1. Crie um projeto no Supabase.
-2. Rode o conteúdo de `supabase/migrations/202609010001_initial_schema.sql` no SQL Editor.
-3. Preencha em `.env.local` a URL, a chave pública, a `SUPABASE_SERVICE_ROLE_KEY` e um `CUSTOMER_SESSION_SECRET` longo e aleatório.
+1. Crie um banco **PostgreSQL** na Render.
+2. Abra o menu **Connect** do banco e copie a **External Database URL**.
+3. Rode o conteúdo de `database/migrations/001_initial_schema.sql` no Query Editor da Render.
+4. Preencha em `.env.local` a `DATABASE_URL` e um `CUSTOMER_SESSION_SECRET` longo e aleatório.
 
-O segredo `SUPABASE_SERVICE_ROLE_KEY` fica apenas no servidor: ele nunca deve ser exposto no navegador ou enviado ao Git.
+`DATABASE_URL` e `CUSTOMER_SESSION_SECRET` são segredos de servidor: nunca devem ser expostos no navegador ou enviados ao Git.
 
 ## Fluxo real do cliente
 
@@ -41,7 +42,7 @@ Para delivery, associe o QR ao cliente do pedido ao gerá-lo. Isso evita que out
 
 ## O que falta para produção
 
-- Login real para a empresa com Supabase Auth e permissões de `owner`, `manager` e `staff`.
+- Login real para a empresa com uma biblioteca de autenticação e permissões de `owner`, `manager` e `staff`.
 - Geração e exportação de lotes de QR Codes pelo painel.
 - Confirmação de telefone via SMS ou WhatsApp antes do primeiro resgate.
 - Worker/cron que consome `wallet_update_jobs` e assina/envia o passe Apple ou atualiza o objeto Google Wallet.

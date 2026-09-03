@@ -12,8 +12,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
     const { code } = await params;
     const record = await getCodeForEnrollment(code);
     if (!record) return errorResponse("invalid_code", 404);
-    const program = record.loyalty_programs as unknown as { name: string; organizations: { name: string } | null } | null;
-    return NextResponse.json({ ok: true, status: record.status, programName: program?.name, organizationName: program?.organizations?.name });
+    return NextResponse.json({ ok: true, status: record.status, programName: record.program_name, organizationName: record.organization_name });
   } catch { return errorResponse("service_unavailable", 503); }
 }
 
