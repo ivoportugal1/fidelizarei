@@ -15,8 +15,10 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [walletLoading, setWalletLoading] = useState(false);
   const [result, setResult] = useState<{ points: number; rewards_available: number; points_to_reward: number } | null>(null);
   const [error, setError] = useState("");
+  const [walletError, setWalletError] = useState("");
 
   useEffect(() => {
     fetch(`/api/redeem/${encodeURIComponent(code)}`)
@@ -42,6 +44,19 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     setResult(body);
   }
 
+  async function addGoogleWallet() {
+    setWalletLoading(true);
+    setWalletError("");
+    const response = await fetch("/api/wallet/google", { method: "POST" });
+    const body = await response.json();
+    setWalletLoading(false);
+    if (!response.ok || !body.ok) {
+      setWalletError("Google Wallet ainda não está configurado para este projeto.");
+      return;
+    }
+    window.location.href = body.url;
+  }
+
   const organization = info?.organizationName || "Fideliza";
   const program = info?.programName || "Programa de fidelidade";
   const isUnavailable = info && (!info.ok || info.status !== "active");
@@ -65,7 +80,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           <button className="button button-coral redeem-button" disabled={loading} onClick={redeem}>{loading ? "Registrando..." : "Adicionar ponto"}</button>
           <small>Código: {code}</small>
         </>}
-        {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Seu cartão será atualizado quando a Wallet estiver conectada."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div></>}
+        {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Adicione o cartão para acompanhar seus pontos na Wallet."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions"><button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button><a className="button button-light" href="/api/wallet/apple">Adicionar à Apple Wallet</a></div>{walletError && <p className="form-error">{walletError}</p>}</>}
       </section>
       <p className="redeem-footer">fideliza<span>.</span> — fidelidade sem aplicativo</p>
     </main>
