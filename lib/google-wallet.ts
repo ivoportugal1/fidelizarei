@@ -49,7 +49,7 @@ async function getGoogleAccessToken(credentials: ServiceAccount) {
   const now = Math.floor(Date.now() / 1000);
   const assertion = signJwt({
     iss: credentials.client_email,
-    scope: "https://www.googleapis.com/auth/wallet_object",
+    scope: "https://www.googleapis.com/auth/wallet_object.issuer",
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
