@@ -4,14 +4,27 @@ export default function Home() {
   return (
     <main className="landing">
       <nav className="landing-nav">
-        <span className="brand">fideliza<span>.</span></span>
-        <Link className="button button-dark" href="/dashboard">Ver demonstração</Link>
+        <img className="landing-logo" src="/logo-fidelizarei.jpeg" alt="Fidelizarei" />
+        <Link className="button button-gold" href="/dashboard">Ver painel</Link>
       </nav>
       <section className="hero">
-        <div className="eyebrow">FIDELIDADE SEM APLICATIVO</div>
-        <h1>Comprou. Escaneou.<br /><i>Voltou.</i></h1>
-        <p>Transforme cada embalagem em uma nova visita. Seus clientes acumulam pontos pela câmera e acompanham tudo na Wallet.</p>
-        <Link className="button button-coral" href="/dashboard">Conhecer o painel <span>→</span></Link>
+        <div className="hero-copy">
+          <div className="eyebrow">FIDELIDADE SEM APLICATIVO</div>
+          <h1>Seu cartão de fidelidade direto na Wallet.</h1>
+          <p>Crie QR Codes, registre pontos e faça o cliente voltar sem instalar app. Tudo com a identidade visual da Fidelizarei.</p>
+          <div className="landing-actions">
+            <Link className="button button-gold" href="/dashboard">Conhecer o painel <span>→</span></Link>
+            <Link className="button button-outline" href="/login">Entrar</Link>
+          </div>
+        </div>
+        <div className="hero-brand-card" aria-label="Marca Fidelizarei">
+          <img src="/fidelizarei-crown-banner.png" alt="" />
+          <div>
+            <span>FIDELIZAREI</span>
+            <b>7 pontos</b>
+            <small>recompensa liberada direto na carteira do cliente</small>
+          </div>
+        </div>
       </section>
       <section className="steps">
         <div><b>01</b><span>Você cria uma campanha e gera os QR Codes.</span></div>
