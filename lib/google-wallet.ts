@@ -6,6 +6,12 @@ type ServiceAccount = {
   private_key: string;
 };
 
+type GoogleTokenResponse = {
+  access_token?: string;
+  error?: string;
+  error_description?: string;
+};
+
 type WalletContext = {
   customer_id: string;
   full_name: string | null;
@@ -39,6 +45,65 @@ function signJwt(payload: unknown, privateKey: string) {
   return `${unsigned}.${signer.sign(privateKey, "base64url")}`;
 }
 
+async function getGoogleAccessToken(credentials: ServiceAccount) {
+  const now = Math.floor(Date.now() / 1000);
+  const assertion = signJwt({
+    iss: credentials.client_email,
+    scope: "https://www.googleapis.com/auth/wallet_object",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  }, credentials.private_key);
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  const body = await response.json() as GoogleTokenResponse;
+  if (!response.ok || !body.access_token) {
+    throw new Error(`google_wallet_auth_failed:${body.error || response.status}`);
+  }
+  return body.access_token;
+}
+
+async function walletRequest(method: "GET" | "POST" | "PATCH", path: string, accessToken: string, body?: unknown) {
+  const response = await fetch(`https://walletobjects.googleapis.com/walletobjects/v1${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await response.text();
+  const parsed = text ? JSON.parse(text) as { error?: { code?: number; status?: string; message?: string } } : {};
+  return { response, parsed };
+}
+
+async function upsertWalletResource(kind: "loyaltyClass" | "loyaltyObject", id: string, accessToken: string, body: unknown) {
+  const encodedId = encodeURIComponent(id);
+  const existing = await walletRequest("GET", `/${kind}/${encodedId}`, accessToken);
+  if (existing.response.ok) {
+    const patched = await walletRequest("PATCH", `/${kind}/${encodedId}`, accessToken, body);
+    if (!patched.response.ok) {
+      throw new Error(`google_wallet_${kind}_patch_failed:${patched.parsed.error?.status || patched.response.status}`);
+    }
+    return;
+  }
+  if (existing.response.status !== 404) {
+    throw new Error(`google_wallet_${kind}_get_failed:${existing.parsed.error?.status || existing.response.status}`);
+  }
+
+  const inserted = await walletRequest("POST", `/${kind}`, accessToken, body);
+  if (!inserted.response.ok) {
+    throw new Error(`google_wallet_${kind}_insert_failed:${inserted.parsed.error?.status || inserted.response.status}`);
+  }
+}
+
 function suffix(value: string) {
   return value.replace(/[^A-Za-z0-9_.-]/g, "_");
 }
@@ -64,7 +129,6 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
 
   const classId = `${issuerId}.${suffix(context.program_id)}`;
   const objectId = `${issuerId}.${suffix(context.customer_id)}`;
-  const originHost = new URL(origin).host;
   const accountName = context.full_name || context.phone_e164 || "Cliente Fideliza";
 
   const loyaltyClass = {
@@ -102,15 +166,18 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     },
   };
 
+  const accessToken = await getGoogleAccessToken(credentials);
+  await upsertWalletResource("loyaltyClass", classId, accessToken, loyaltyClass);
+  await upsertWalletResource("loyaltyObject", objectId, accessToken, loyaltyObject);
+
   const token = signJwt({
     iss: credentials.client_email,
     aud: "google",
     typ: "savetowallet",
     iat: Math.floor(Date.now() / 1000),
-    origins: [originHost],
+    origins: [origin],
     payload: {
-      loyaltyClasses: [loyaltyClass],
-      loyaltyObjects: [loyaltyObject],
+      loyaltyObjects: [{ id: objectId, classId }],
     },
   }, credentials.private_key);
 
