@@ -84,23 +84,29 @@ async function walletRequest(method: "GET" | "POST" | "PATCH", path: string, acc
   return { response, parsed };
 }
 
+function walletErrorDetail(parsed: { error?: { status?: string; message?: string } }, status: number) {
+  const reason = parsed.error?.status || status;
+  const message = parsed.error?.message ? `:${parsed.error.message.slice(0, 240)}` : "";
+  return `${reason}${message}`;
+}
+
 async function upsertWalletResource(kind: "loyaltyClass" | "loyaltyObject", id: string, accessToken: string, body: unknown) {
   const encodedId = encodeURIComponent(id);
   const existing = await walletRequest("GET", `/${kind}/${encodedId}`, accessToken);
   if (existing.response.ok) {
     const patched = await walletRequest("PATCH", `/${kind}/${encodedId}`, accessToken, body);
     if (!patched.response.ok) {
-      throw new Error(`google_wallet_${kind}_patch_failed:${patched.parsed.error?.status || patched.response.status}`);
+      throw new Error(`google_wallet_${kind}_patch_failed:${walletErrorDetail(patched.parsed, patched.response.status)}`);
     }
     return;
   }
   if (existing.response.status !== 404) {
-    throw new Error(`google_wallet_${kind}_get_failed:${existing.parsed.error?.status || existing.response.status}`);
+    throw new Error(`google_wallet_${kind}_get_failed:${walletErrorDetail(existing.parsed, existing.response.status)}`);
   }
 
   const inserted = await walletRequest("POST", `/${kind}`, accessToken, body);
   if (!inserted.response.ok) {
-    throw new Error(`google_wallet_${kind}_insert_failed:${inserted.parsed.error?.status || inserted.response.status}`);
+    throw new Error(`google_wallet_${kind}_insert_failed:${walletErrorDetail(inserted.parsed, inserted.response.status)}`);
   }
 }
 
@@ -136,6 +142,17 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     issuerName: context.organization_name,
     programName: context.program_name,
     reviewStatus: "UNDER_REVIEW",
+    programLogo: {
+      sourceUri: {
+        uri: "https://www.gstatic.com/images/branding/product/1x/wallet_48dp.png",
+      },
+      contentDescription: {
+        defaultValue: {
+          language: "pt-BR",
+          value: "Logo do programa Fidelizarei",
+        },
+      },
+    },
   };
 
   const loyaltyObject = {
