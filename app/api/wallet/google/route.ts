@@ -7,12 +7,17 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const userAgent = request.headers.get("user-agent") || "";
+    if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      return NextResponse.json({ ok: false, error: "google_wallet_requires_android" }, { status: 400 });
+    }
     const session = readCustomerSession((await cookies()).get("fideliza_customer")?.value);
     if (!session) return NextResponse.json({ ok: false, error: "identity_required" }, { status: 401 });
     const url = await createGoogleWalletSaveLink(session.customerId, new URL(request.url).origin);
     return NextResponse.json({ ok: true, url });
   } catch (error) {
     const message = error instanceof Error ? error.message : "wallet_unavailable";
+    console.error("google_wallet_error", message);
     const status = message === "google_wallet_not_configured" ? 503 : 500;
     return NextResponse.json({ ok: false, error: message }, { status });
   }
