@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
 import type { DashboardData } from "@/lib/admin-data";
 
 type GeneratedCode = { code: string; url: string };
+type WalletSettings = DashboardData["walletSettings"];
+type PointTheme = WalletSettings["pointTheme"];
 
 const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem atividade";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CL";
+
+const pointThemes: Array<{ value: PointTheme; label: string }> = [
+  { value: "cafeteria", label: "Cafeteria" },
+  { value: "acaiteria", label: "Açaíteria" },
+  { value: "sorveteria", label: "Sorveteria" },
+  { value: "pizzaria", label: "Pizzaria" },
+  { value: "hamburgueria", label: "Hamburgueria" },
+  { value: "padaria", label: "Padaria" },
+  { value: "barbearia", label: "Barbearia" },
+  { value: "petshop", label: "Pet shop" },
+  { value: "universal", label: "Universal" },
+];
 
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -99,7 +113,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           active === "QR Codes" ? <Codes data={initialData} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
           active === "Clientes" ? <Customers data={initialData} /> :
           active === "Campanhas" ? <Campaigns data={initialData} /> :
-          active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={() => flash("Personalização visual entra na próxima etapa de edição real.")} /> :
+          active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={flash} /> :
           <Rewards data={initialData} />}
       </section>
 
@@ -151,9 +165,151 @@ function Rewards({ data }: { data: DashboardData }) {
   return <div className="content"><section className="section-intro"><div><div className="eyebrow">RECOMPENSAS</div><h2>{data.program.rewardName}</h2><p>O saldo é calculado automaticamente quando o cliente atinge a meta de pontos.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section></div>;
 }
 
-function CardDesigner({ data, onSave }: { data: DashboardData; onSave: () => void }) {
-  const [name, setName] = useState(data.organization.name);
-  const [color, setColor] = useState(data.program.backgroundColor);
-  const dots = useMemo(() => Array.from({ length: Math.min(data.program.pointsToReward, 10) }), [data.program.pointsToReward]);
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">IDENTIDADE VISUAL</div><h2>Personalizar cartão</h2><p>Prévia do cartão que será usado na integração com Wallet.</p></div></section><div className="designer"><article className="panel design-form"><label>Nome da empresa<input value={name} onChange={(e) => setName(e.target.value)} /></label><label>Nome do programa<input value={data.program.name} readOnly /></label><label>Cor principal<div className="color-input"><input type="color" value={color} onChange={(e) => setColor(e.target.value)} /><span>{color.toUpperCase()}</span></div></label><button className="button button-dark" onClick={onSave}>Salvar alterações</button></article><article className="designer-preview"><div className="pass-card editable" style={{ background: color }}><div className="pass-head"><span className="pass-mark">{name[0]}</span><span>{name.toUpperCase()}</span><b>•••</b></div><div className="pass-title">{data.program.name}</div><div className="pass-count"><b>0</b><span>/ {data.program.pointsToReward}</span><small>PONTOS</small></div><div className="pass-dots">{dots.map((_, index) => <i key={index} className={index === 0 ? "" : "empty"}></i>)}</div><div className="pass-reward">{data.program.pointsToReward} pontos = {data.program.rewardName}</div></div><p>Persistência de personalização entra no próximo corte.</p></article></div></div>;
+function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message: string) => void }) {
+  const [settings, setSettings] = useState<WalletSettings>(data.walletSettings);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<"logo" | "cover" | null>(null);
+  const previewPoints = Math.min(4, settings.pointsGoal);
+
+  const update = <K extends keyof WalletSettings>(key: K, value: WalletSettings[K]) => {
+    setSettings((current) => ({ ...current, [key]: value }));
+  };
+
+  async function uploadAsset(kind: "logo" | "cover", file?: File) {
+    if (!file) return;
+    setUploading(kind);
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/wallet/assets", { method: "POST", body: formData });
+    const body = await response.json();
+    setUploading(null);
+    if (!response.ok || !body.ok) {
+      onSave("Não consegui enviar a imagem. Use PNG, JPG ou WEBP com até 2 MB.");
+      return;
+    }
+    update(kind === "logo" ? "logoUrl" : "coverUrl", body.url);
+  }
+
+  async function save() {
+    setSaving(true);
+    const response = await fetch("/api/wallet/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settings }),
+    });
+    const body = await response.json();
+    setSaving(false);
+    if (!response.ok || !body.ok) {
+      onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
+      return;
+    }
+    setSettings(body.settings);
+    onSave("Personalização do cartão salva.");
+  }
+
+  return (
+    <div className="content wallet-editor-page">
+      <section className="section-intro">
+        <div>
+          <div className="eyebrow">WALLET DESIGN SYSTEM</div>
+          <h2>Personalizar cartão</h2>
+          <p>Uma configuração central. O Fidelizarei adapta a identidade para Apple Wallet e Google Wallet.</p>
+        </div>
+        <button className="button button-dark" disabled={saving} onClick={save}>{saving ? "Salvando..." : "Salvar cartão"}</button>
+      </section>
+
+      <div className="wallet-editor-grid">
+        <article className="panel wallet-form">
+          <div className="wallet-form-section">
+            <h3>Identidade do estabelecimento</h3>
+            <div className="upload-grid">
+              <label className="upload-card">
+                <span>Logo</span>
+                {settings.logoUrl ? <img src={settings.logoUrl} alt="Logo do estabelecimento" /> : <b>{initials(settings.businessName)}</b>}
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadAsset("logo", event.target.files?.[0])} />
+                <small>{uploading === "logo" ? "Enviando..." : "PNG, JPG ou WEBP"}</small>
+              </label>
+              <label className="upload-card wide">
+                <span>Foto/capa</span>
+                {settings.coverUrl ? <img src={settings.coverUrl} alt="Capa do cartão" /> : <b>Capa</b>}
+                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadAsset("cover", event.target.files?.[0])} />
+                <small>{uploading === "cover" ? "Enviando..." : "Imagem horizontal funciona melhor"}</small>
+              </label>
+            </div>
+            <label>Nome do estabelecimento<input value={settings.businessName} onChange={(e) => update("businessName", e.target.value)} /></label>
+            <label>Nome/descrição do programa<input value={settings.programDescription} onChange={(e) => update("programDescription", e.target.value)} /></label>
+            <label>Texto da recompensa<input value={settings.rewardText} onChange={(e) => update("rewardText", e.target.value)} /></label>
+          </div>
+
+          <div className="wallet-form-section">
+            <h3>Visual e progresso</h3>
+            <div className="form-row">
+              <label>Cor principal<div className="color-input"><input type="color" value={settings.primaryColor} onChange={(e) => update("primaryColor", e.target.value)} /><span>{settings.primaryColor.toUpperCase()}</span></div></label>
+              <label>Cor secundária<div className="color-input"><input type="color" value={settings.secondaryColor} onChange={(e) => update("secondaryColor", e.target.value)} /><span>{settings.secondaryColor.toUpperCase()}</span></div></label>
+            </div>
+            <div className="form-row">
+              <label>Meta de pontos/compras<input type="number" min="1" max="20" value={settings.pointsGoal} onChange={(e) => update("pointsGoal", Number(e.target.value))} /></label>
+              <label>Tema de pontuação<select value={settings.pointTheme} onChange={(e) => update("pointTheme", e.target.value as PointTheme)}>{pointThemes.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}</select></label>
+            </div>
+            <p className="editor-note">A meta aqui controla a apresentação visual do cartão. A regra operacional de pontos continua separada.</p>
+          </div>
+        </article>
+
+        <section className="wallet-previews">
+          <article className="wallet-preview-block">
+            <div className="preview-label">Apple Wallet</div>
+            <AppleWalletPreview settings={settings} points={previewPoints} />
+          </article>
+          <article className="wallet-preview-block">
+            <div className="preview-label">Google Wallet</div>
+            <GoogleWalletPreview settings={settings} points={previewPoints} />
+          </article>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ProgressMarks({ theme, total, current, fill }: { theme: PointTheme; total: number; current: number; fill: string }) {
+  return <div className={theme === "universal" ? "progress-marks universal" : "progress-marks"}>{Array.from({ length: total }).map((_, index) => {
+    const done = index < current;
+    return <span key={index} className={done ? "done" : ""} style={{ "--mark-color": fill } as CSSProperties}>{theme === "universal" ? index + 1 : <PointIcon theme={theme} />}</span>;
+  })}</div>;
+}
+
+function PointIcon({ theme }: { theme: PointTheme }) {
+  if (theme === "cafeteria") return <svg viewBox="0 0 24 24"><path d="M4 8h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M16 10h2.2a2.3 2.3 0 0 1 0 4.6H16"/><path d="M7 5h6"/></svg>;
+  if (theme === "acaiteria") return <svg viewBox="0 0 24 24"><path d="M5 9h14l-1.5 8.5H6.5L5 9Z"/><path d="M8 9c.4-2 1.8-3 4-3s3.6 1 4 3"/><path d="M9 13h6"/></svg>;
+  if (theme === "sorveteria") return <svg viewBox="0 0 24 24"><path d="M8 10a4 4 0 0 1 8 0"/><path d="M7 10h10l-5 10-5-10Z"/><path d="M10 14h4"/></svg>;
+  if (theme === "pizzaria") return <svg viewBox="0 0 24 24"><path d="M6 20 18 4c-4 0-8 1.5-12 4v12Z"/><path d="M9 11h.1"/><path d="M11 15h.1"/><path d="M13 9h.1"/></svg>;
+  if (theme === "hamburgueria") return <svg viewBox="0 0 24 24"><path d="M5 11c.5-3 3-5 7-5s6.5 2 7 5H5Z"/><path d="M5 14h14"/><path d="M6 17h12"/><path d="M8 11h.1M12 9h.1M16 11h.1"/></svg>;
+  if (theme === "padaria") return <svg viewBox="0 0 24 24"><path d="M5 13c0-4 3-7 7-7s7 3 7 7c0 3-2.5 5-7 5s-7-2-7-5Z"/><path d="M9 8c-1 2-1 4 0 6M13 7c-1 2-1 5 0 8"/></svg>;
+  if (theme === "barbearia") return <svg viewBox="0 0 24 24"><path d="m5 5 14 14"/><path d="m19 5-7 7"/><circle cx="6" cy="17" r="2.5"/><circle cx="6" cy="7" r="2.5"/></svg>;
+  if (theme === "petshop") return <svg viewBox="0 0 24 24"><path d="M8 13c2-2 6-2 8 0l1 1.5c1.5 2.2 0 4.5-2.5 3.8a9 9 0 0 0-5 0C7 19 5.5 16.7 7 14.5L8 13Z"/><circle cx="7" cy="9" r="1.7"/><circle cx="11" cy="7" r="1.7"/><circle cx="15" cy="7" r="1.7"/><circle cx="19" cy="9" r="1.7"/></svg>;
+  return null;
+}
+
+function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
+  return <div className="apple-pass">
+    <div className="pass-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="pass-hero-shade" /><div className="merchant-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><strong>{settings.businessName}</strong><small>{settings.programDescription}</small></div>
+    <div className="pass-body">
+      <h3>Compre {settings.pointsGoal} e ganhe {settings.rewardText}</h3>
+      <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} />
+      <div className="pass-progress-row"><b>{points} de {settings.pointsGoal}</b><span>Faltam {Math.max(settings.pointsGoal - points, 0)} para sua recompensa</span></div>
+      <div className="pass-footer-grid"><div><small>CLIENTE</small><b>Davi Miguel</b></div><div><small>DESDE</small><b>Mar 2025</b></div><PoweredBy /></div>
+    </div>
+  </div>;
+}
+
+function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
+  return <div className="google-pass">
+    <div className="google-pass-head"><div className="google-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 10h14v10H5z"/><path d="M4 10h16V7H4z"/><path d="M12 7v13"/><path d="M8.5 7C6 5 8.5 3 12 7c3.5-4 6-2 3.5 0"/></svg></span><div><b>Recompensa</b><p>{settings.rewardText}</p></div></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} /></div></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>A cada compra válida, o cliente ganha 1 ponto.</p></div></div>
+  </div>;
+}
+
+function PoweredBy() {
+  return <div className="powered-by"><span>Powered by</span><img src="/logo-fidelizarei-transparent.png" alt="fidelizarei" /></div>;
 }

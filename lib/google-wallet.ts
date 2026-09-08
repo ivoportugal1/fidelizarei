@@ -1,5 +1,6 @@
 import { createSign } from "node:crypto";
 import { query } from "./database";
+import { defaultWalletSettings, getWalletCardSettings } from "./wallet-settings";
 
 type ServiceAccount = {
   client_email: string;
@@ -16,11 +17,13 @@ type WalletContext = {
   customer_id: string;
   full_name: string | null;
   phone_e164: string | null;
+  organization_id: string;
   organization_name: string;
   program_id: string;
   program_name: string;
   reward_name: string;
   points_to_reward: number;
+  pass_background_color: string;
   points: number;
   rewards_available: number;
 };
@@ -120,8 +123,10 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
 
   const credentials = parseServiceAccount();
   const result = await query<WalletContext>(`
-    select c.id as customer_id, c.full_name, c.phone_e164, o.name as organization_name,
+    select c.id as customer_id, c.full_name, c.phone_e164,
+           o.id as organization_id, o.name as organization_name,
            p.id as program_id, p.name as program_name, p.reward_name, p.points_to_reward,
+           p.pass_background_color,
            coalesce(lb.points, 0) as points, coalesce(lb.rewards_available, 0) as rewards_available
     from customers c
     join organizations o on o.id = c.organization_id
@@ -136,23 +141,42 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
   const classId = `${issuerId}.${suffix(context.program_id)}`;
   const objectId = `${issuerId}.${suffix(context.customer_id)}`;
   const accountName = context.full_name || context.phone_e164 || "Cliente Fideliza";
+  const settings = await getWalletCardSettings(context.organization_id, defaultWalletSettings({
+    businessName: context.organization_name,
+    programName: context.program_name,
+    rewardName: context.reward_name,
+    pointsToReward: context.points_to_reward,
+    backgroundColor: context.pass_background_color,
+  }), origin);
 
   const loyaltyClass = {
     id: classId,
-    issuerName: context.organization_name,
-    programName: context.program_name,
+    issuerName: settings.businessName,
+    programName: settings.programDescription,
     reviewStatus: "UNDER_REVIEW",
+    hexBackgroundColor: settings.primaryColor,
     programLogo: {
       sourceUri: {
-        uri: "https://www.gstatic.com/images/branding/product/1x/wallet_48dp.png",
+        uri: settings.logoUrl || "https://www.gstatic.com/images/branding/product/1x/wallet_48dp.png",
       },
       contentDescription: {
         defaultValue: {
           language: "pt-BR",
-          value: "Logo do programa Fidelizarei",
+          value: `Logo de ${settings.businessName}`,
         },
       },
     },
+    ...(settings.coverUrl ? {
+      heroImage: {
+        sourceUri: { uri: settings.coverUrl },
+        contentDescription: {
+          defaultValue: {
+            language: "pt-BR",
+            value: `Capa do cartão ${settings.businessName}`,
+          },
+        },
+      },
+    } : {}),
   };
 
   const loyaltyObject = {
@@ -173,8 +197,13 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
       },
       {
         header: "Regra",
-        body: `${context.points_to_reward} pontos = ${context.reward_name}`,
+        body: `${settings.pointsGoal} pontos = ${settings.rewardText}`,
         id: "reward_rule",
+      },
+      {
+        header: "Fornecido por",
+        body: "Powered by fidelizarei",
+        id: "powered_by",
       },
     ],
     barcode: {

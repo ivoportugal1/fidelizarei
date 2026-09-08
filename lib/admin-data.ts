@@ -1,4 +1,5 @@
 import { query } from "./database";
+import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 export type DashboardData = {
   user: { name: string; email: string };
@@ -11,6 +12,7 @@ export type DashboardData = {
     pointsPerCode: number;
     backgroundColor: string;
   };
+  walletSettings: WalletCardSettings;
   metrics: {
     customers: number;
     points: number;
@@ -61,7 +63,15 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
   const row = context.rows[0];
   if (!row) throw new Error("dashboard_not_configured");
 
-  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent] = await Promise.all([
+  const defaults = defaultWalletSettings({
+    businessName: row.organization_name,
+    programName: row.program_name,
+    rewardName: row.reward_name,
+    pointsToReward: row.points_to_reward,
+    backgroundColor: row.pass_background_color,
+  });
+
+  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings] = await Promise.all([
     query<{ count: string }>("select count(*) from customers where organization_id = $1", [row.organization_id]),
     query<{ total: string | null }>("select coalesce(sum(points_delta), 0) as total from point_transactions where organization_id = $1 and kind = 'earn'", [row.organization_id]),
     query<{ total: string | null }>("select coalesce(sum(rewards_available), 0) as total from loyalty_balances lb join loyalty_programs p on p.id = lb.program_id where p.organization_id = $1", [row.organization_id]),
@@ -82,6 +92,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       where t.organization_id = $1
       order by t.created_at desc
       limit 12`, [row.organization_id]),
+    getWalletCardSettings(row.organization_id, defaults),
   ]);
 
   return {
@@ -95,6 +106,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       pointsPerCode: row.points_per_code,
       backgroundColor: row.pass_background_color,
     },
+    walletSettings,
     metrics: {
       customers: Number(customerCount.rows[0]?.count ?? 0),
       points: Number(pointCount.rows[0]?.total ?? 0),
