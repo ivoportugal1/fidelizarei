@@ -206,10 +206,6 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
         id: "powered_by",
       },
     ],
-    barcode: {
-      type: "QR_CODE",
-      value: context.customer_id,
-    },
   };
 
   const accessToken = await getGoogleAccessToken(credentials);
