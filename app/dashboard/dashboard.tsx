@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
 import type { DashboardData } from "@/lib/admin-data";
 
@@ -23,6 +23,11 @@ const pointThemes: Array<{ value: PointTheme; label: string }> = [
   { value: "petshop", label: "Pet shop" },
   { value: "universal", label: "Universal" },
 ];
+
+const previewCustomer = {
+  name: "João Silva",
+  memberSince: "Set 2026",
+};
 
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -270,10 +275,10 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
   );
 }
 
-function ProgressMarks({ theme, total, current, fill }: { theme: PointTheme; total: number; current: number; fill: string }) {
+function ProgressMarks({ theme, total, current, fill, accent }: { theme: PointTheme; total: number; current: number; fill: string; accent?: string }) {
   return <div className={theme === "universal" ? "progress-marks universal" : "progress-marks"}>{Array.from({ length: total }).map((_, index) => {
     const done = index < current;
-    return <span key={index} className={done ? "done" : ""} style={{ "--mark-color": fill } as CSSProperties}>{theme === "universal" ? index + 1 : <PointIcon theme={theme} />}</span>;
+    return <span key={index} className={done ? "done" : ""} style={{ "--mark-color": fill, "--mark-accent": accent || fill } as CSSProperties}>{theme === "universal" ? index + 1 : <PointIcon theme={theme} />}</span>;
   })}</div>;
 }
 
@@ -291,21 +296,22 @@ function PointIcon({ theme }: { theme: PointTheme }) {
 
 function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
   return <div className="apple-pass">
-    <div className="pass-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="pass-hero-shade" /><div className="merchant-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><strong>{settings.businessName}</strong><small>{settings.programDescription}</small></div>
+    <div className="pass-hero" style={{ backgroundColor: settings.primaryColor, "--accent-color": settings.secondaryColor } as CSSProperties}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="pass-hero-shade" /><div className="merchant-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><strong>{settings.businessName}</strong><small>{settings.programDescription}</small></div>
     <div className="pass-body">
       <h3>Compre {settings.pointsGoal} e ganhe {settings.rewardText}</h3>
-      <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} />
+      <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} />
       <div className="pass-progress-row"><b>{points} de {settings.pointsGoal}</b><span>Faltam {Math.max(settings.pointsGoal - points, 0)} para sua recompensa</span></div>
-      <div className="pass-footer-grid"><div><small>CLIENTE</small><b>Davi Miguel</b></div><div><small>DESDE</small><b>Mar 2025</b></div><PoweredBy /></div>
+      <div className="pass-footer-grid"><div><small>CLIENTE</small><b>{previewCustomer.name}</b></div><div><small>MEMBRO DESDE</small><b>{previewCustomer.memberSince}</b></div><PoweredBy /></div>
     </div>
   </div>;
 }
 
 function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
-  return <div className="google-pass">
+  return <div className="google-pass" style={{ "--google-primary": settings.primaryColor, "--google-secondary": settings.secondaryColor } as CSSProperties}>
+    <div className="google-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="google-hero-shade" /><div><small>Google Wallet</small><strong>{settings.businessName}</strong><span>{settings.programDescription}</span></div></div>
     <div className="google-pass-head"><div className="google-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 10h14v10H5z"/><path d="M4 10h16V7H4z"/><path d="M12 7v13"/><path d="M8.5 7C6 5 8.5 3 12 7c3.5-4 6-2 3.5 0"/></svg></span><div><b>Recompensa</b><p>{settings.rewardText}</p></div></div>
-    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} /></div></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} /></div></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>A cada compra válida, o cliente ganha 1 ponto.</p></div></div>
   </div>;
 }
