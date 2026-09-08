@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin@fidelizarei.com");
@@ -35,6 +36,7 @@ export default function LoginPage() {
         <label>Senha<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" /></label>
         {error && <p className="form-error">{error}</p>}
         <button className="button button-dark" disabled={loading}>{loading ? "Entrando..." : "Entrar"}</button>
+        <p className="auth-switch">Ainda não tem conta? <Link href="/signup">Criar conta grátis</Link></p>
       </form>
     </main>
   );

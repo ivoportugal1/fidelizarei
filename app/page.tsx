@@ -5,7 +5,7 @@ export default function Home() {
     <main className="landing">
       <nav className="landing-nav">
         <img className="landing-logo" src="/logo-fidelizarei-transparent.png" alt="Fidelizarei" />
-        <Link className="button button-gold" href="/dashboard">Ver painel</Link>
+        <Link className="button button-gold" href="/signup">Começar grátis</Link>
       </nav>
       <section className="hero">
         <div className="hero-copy">
@@ -13,7 +13,7 @@ export default function Home() {
           <h1>Comprou. Escaneou.<br /><i>Voltou.</i></h1>
           <p>Crie QR Codes, registre pontos e faça o cliente voltar sem instalar app. Tudo com a identidade visual da Fidelizarei.</p>
           <div className="landing-actions">
-            <Link className="button button-gold" href="/dashboard">Conhecer o painel <span>→</span></Link>
+            <Link className="button button-gold" href="/signup">Começar grátis <span>→</span></Link>
             <Link className="button button-outline" href="/login">Entrar</Link>
           </div>
         </div>
