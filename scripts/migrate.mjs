@@ -23,8 +23,16 @@ try {
   await client.connect();
   for (const file of migrationFiles) {
     const sql = await readFile(resolve(migrationsDir, file), "utf8");
-    await client.query(sql);
-    console.log(`Applied ${file}`);
+    try {
+      await client.query(sql);
+      console.log(`Applied ${file}`);
+    } catch (error) {
+      if (file === "001_initial_schema.sql" && error?.code === "42P07") {
+        console.log(`Skipped ${file}; initial schema already exists.`);
+        continue;
+      }
+      throw error;
+    }
   }
   console.log("Database migrations completed.");
 } finally {
