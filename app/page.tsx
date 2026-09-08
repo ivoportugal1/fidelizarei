@@ -4,13 +4,13 @@ export default function Home() {
   return (
     <main className="landing">
       <nav className="landing-nav">
-        <img className="landing-logo" src="/logo-fidelizarei.jpeg" alt="Fidelizarei" />
+        <img className="landing-logo" src="/logo-fidelizarei-transparent.png" alt="Fidelizarei" />
         <Link className="button button-gold" href="/dashboard">Ver painel</Link>
       </nav>
       <section className="hero">
         <div className="hero-copy">
           <div className="eyebrow">FIDELIDADE SEM APLICATIVO</div>
-          <h1>Seu cartão de fidelidade direto na Wallet.</h1>
+          <h1>Comprou. Escaneou.<br /><i>Voltou.</i></h1>
           <p>Crie QR Codes, registre pontos e faça o cliente voltar sem instalar app. Tudo com a identidade visual da Fidelizarei.</p>
           <div className="landing-actions">
             <Link className="button button-gold" href="/dashboard">Conhecer o painel <span>→</span></Link>
