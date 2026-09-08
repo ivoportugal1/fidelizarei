@@ -1,0 +1,68 @@
+"use client";
+
+import { useState } from "react";
+import type { BillingInterval, BillingState } from "@/lib/billing";
+
+function formatDate(value: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(new Date(value));
+}
+
+export default function BillingPageClient({ billing }: { billing: BillingState }) {
+  const [loading, setLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<BillingInterval>(billing.billingInterval || "monthly");
+  const [error, setError] = useState("");
+
+  async function subscribe() {
+    setLoading(true);
+    setError("");
+    const response = await fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interval: selectedPlan }),
+    });
+    const body = await response.json();
+    setLoading(false);
+    if (!response.ok || !body.ok) {
+      setError("Não consegui abrir o Mercado Pago. Confira as variáveis de ambiente.");
+      return;
+    }
+    window.location.href = body.checkoutUrl;
+  }
+
+  return (
+    <main className="billing-page">
+      <section className="billing-card">
+        <a className="brand" href="/">fideliza<span>.</span></a>
+        <p className="eyebrow">ASSINATURA</p>
+        <h1>Planos Fidelizarei</h1>
+        <p className="muted">{billing.message}</p>
+        <div className="billing-plans">
+          <button type="button" className={selectedPlan === "monthly" ? "billing-plan active" : "billing-plan"} onClick={() => setSelectedPlan("monthly")}>
+            <span>Mensal</span>
+            <b>R$ 60</b>
+            <small>cobrança mensal</small>
+          </button>
+          <button type="button" className={selectedPlan === "yearly" ? "billing-plan active" : "billing-plan"} onClick={() => setSelectedPlan("yearly")}>
+            <span>Anual</span>
+            <b>R$ 600</b>
+            <small>2 meses grátis</small>
+          </button>
+        </div>
+        <div className="billing-status">
+          <div><span>Status</span><b>{billing.status}</b></div>
+          <div><span>Teste grátis até</span><b>{formatDate(billing.trialEndsAt)}</b></div>
+          <div><span>Próxima validade</span><b>{formatDate(billing.currentPeriodEnd)}</b></div>
+        </div>
+        {billing.accessAllowed ? (
+          <a className="button button-dark" href="/dashboard">Ir para o painel</a>
+        ) : (
+          <button className="button button-dark" onClick={subscribe} disabled={loading}>{loading ? "Abrindo..." : "Assinar com Mercado Pago"}</button>
+        )}
+        {billing.accessAllowed && <button className="button button-light" onClick={subscribe} disabled={loading}>{loading ? "Abrindo..." : "Gerenciar/ativar assinatura"}</button>}
+        <p className="billing-note">O acesso é liberado automaticamente quando o Mercado Pago confirmar o pagamento pelo webhook.</p>
+        {error && <p className="form-error">{error}</p>}
+      </section>
+    </main>
+  );
+}
