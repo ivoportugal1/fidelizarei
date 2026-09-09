@@ -72,6 +72,15 @@ function planAmount(interval: BillingInterval) {
   return amount;
 }
 
+function normalizeCoupon(code?: string) {
+  return (code || "").trim().toUpperCase().replace(/\s+/g, "");
+}
+
+export function isTrialCouponValid(code?: string) {
+  const configured = normalizeCoupon(process.env.FIDELIZAREI_TRIAL_COUPON_CODE || "30DIASGRATIS");
+  return !!configured && normalizeCoupon(code) === configured;
+}
+
 function isAllowed(status: BillingStatus, trialEndsAt: Date | null, currentPeriodEnd: Date | null) {
   const now = Date.now();
   if (status === "active") return !currentPeriodEnd || currentPeriodEnd.getTime() > now;
@@ -86,7 +95,7 @@ function billingMessage(status: BillingStatus, trialEndsAt: Date | null, current
   if (status === "pending") return "Pagamento em análise ou aguardando confirmação.";
   if (status === "past_due") return "Pagamento atrasado. Regularize para liberar o painel.";
   if (status === "canceled") return "Assinatura cancelada. Reative para liberar o painel.";
-  return "Teste grátis encerrado. Assine para liberar o painel.";
+  return "Assine um plano ou aplique um cupom válido para liberar o painel.";
 }
 
 async function getBillingRowForUser(userId: string) {
@@ -141,7 +150,6 @@ async function mercadoPagoRequest<T>(path: string, init?: RequestInit): Promise<
 
 export async function createMercadoPagoSubscriptionCheckout(userId: string, userEmail: string, origin: string, interval: BillingInterval) {
   const billing = await getBillingStateForUser(userId);
-  const trialStillAvailable = billing.status === "trialing" && billing.accessAllowed;
   const baseUrl = appUrl(origin);
   const plan = billingPlans[interval];
 
@@ -156,7 +164,6 @@ export async function createMercadoPagoSubscriptionCheckout(userId: string, user
       frequency_type: plan.frequencyType,
       transaction_amount: planAmount(interval),
       currency_id: "BRL",
-      ...(trialStillAvailable ? { free_trial: { frequency: 30, frequency_type: "days" } } : {}),
     },
   };
 
@@ -177,6 +184,26 @@ export async function createMercadoPagoSubscriptionCheckout(userId: string, user
 
   if (!checkoutUrl) throw new Error("mercadopago_checkout_url_missing");
   return checkoutUrl;
+}
+
+export async function applyTrialCouponForUser(userId: string, interval: BillingInterval, couponCode?: string) {
+  if (!isTrialCouponValid(couponCode)) return { ok: false, error: "invalid_coupon" as const };
+  const row = await getBillingRowForUser(userId);
+  if (!row) return { ok: false, error: "organization_not_found" as const };
+  if (row.subscription_status === "active") return { ok: false, error: "already_active" as const };
+
+  await query(`
+    update organizations
+    set subscription_status = 'trialing',
+        trial_started_at = now(),
+        trial_ends_at = now() + interval '30 days',
+        subscription_billing_interval = $2,
+        subscription_coupon_code = $3,
+        access_blocked_at = null,
+        subscription_last_synced_at = now()
+    where id = $1`, [row.organization_id, interval, normalizeCoupon(couponCode)]);
+
+  return { ok: true };
 }
 
 function mapPreapprovalStatus(status?: string): BillingStatus {

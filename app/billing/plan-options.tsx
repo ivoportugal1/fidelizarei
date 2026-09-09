@@ -12,7 +12,7 @@ export function PlanOptions({ selectedPlan, onSelect, compact = false }: {
       <button type="button" className={selectedPlan === "monthly" ? "billing-plan active" : "billing-plan"} onClick={() => onSelect("monthly")}>
         <span>Mensal</span>
         <b>R$ 60</b>
-        <small>por mês, após 30 dias grátis</small>
+        <small>cobrança mensal recorrente</small>
       </button>
       <button type="button" className={selectedPlan === "yearly" ? "billing-plan annual active" : "billing-plan annual"} onClick={() => onSelect("yearly")}>
         <em>Desconto Fidelizarei</em>

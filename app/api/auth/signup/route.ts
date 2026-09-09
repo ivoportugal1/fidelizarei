@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminSession, hashPassword, setAdminCookie } from "@/lib/auth";
+import { isTrialCouponValid } from "@/lib/billing";
 import { query } from "@/lib/database";
 
 export const runtime = "nodejs";
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     email?: string;
     password?: string;
     billingInterval?: "monthly" | "yearly";
+    couponCode?: string;
   };
 
   const businessName = body.businessName?.trim();
@@ -38,9 +40,14 @@ export async function POST(request: Request) {
   const email = body.email?.trim().toLowerCase();
   const password = body.password ?? "";
   const billingInterval = body.billingInterval === "yearly" ? "yearly" : "monthly";
+  const couponCode = body.couponCode?.trim() || "";
+  const hasTrialCoupon = isTrialCouponValid(couponCode);
 
   if (!businessName || !ownerName || !email || password.length < 8) {
     return NextResponse.json({ ok: false, error: "invalid_signup" }, { status: 400 });
+  }
+  if (couponCode && !hasTrialCoupon) {
+    return NextResponse.json({ ok: false, error: "invalid_coupon" }, { status: 400 });
   }
 
   const existingUser = await query<{ id: string }>("select id from app_users where email = $1 limit 1", [email]);
@@ -50,9 +57,17 @@ export async function POST(request: Request) {
 
   const slug = await uniqueSlug(slugify(businessName));
   const org = await query<{ id: string }>(`
-    insert into organizations (name, slug, plan, subscription_status, trial_started_at, trial_ends_at, subscription_billing_interval)
-    values ($1, $2, 'starter', 'trialing', now(), now() + interval '30 days', $3)
-    returning id`, [businessName, slug, billingInterval]);
+    insert into organizations (
+      name, slug, plan, subscription_status, trial_started_at, trial_ends_at,
+      subscription_billing_interval, subscription_coupon_code
+    )
+    values (
+      $1, $2, 'starter', $3,
+      case when $3 = 'trialing' then now() else null end,
+      case when $3 = 'trialing' then now() + interval '30 days' else null end,
+      $4, $5
+    )
+    returning id`, [businessName, slug, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null]);
 
   const user = await query<{ id: string }>(`
     insert into app_users (email, password_hash, full_name)
@@ -68,5 +83,5 @@ export async function POST(request: Request) {
     values ($1, 'Programa de Fidelidade', 'Recompensa', 7, 1)`, [org.rows[0].id]);
 
   await setAdminCookie(createAdminSession(user.rows[0].id));
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, nextUrl: hasTrialCoupon ? "/dashboard" : "/billing" });
 }
