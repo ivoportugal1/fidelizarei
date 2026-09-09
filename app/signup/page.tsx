@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { PlanOptions } from "@/app/billing/plan-options";
 
 export default function SignupPage() {
   const [businessName, setBusinessName] = useState("");
@@ -37,18 +38,7 @@ export default function SignupPage() {
         <p className="eyebrow">COMECE EM 30 DIAS GRÁTIS</p>
         <h1>Criar conta</h1>
         <p className="muted">Escolha o plano agora. Você só começa a pagar depois dos 30 dias grátis.</p>
-        <div className="billing-plans compact">
-          <button type="button" className={billingInterval === "monthly" ? "billing-plan active" : "billing-plan"} onClick={() => setBillingInterval("monthly")}>
-            <span>Mensal</span>
-            <b>R$ 60</b>
-            <small>por mês, após 30 dias grátis</small>
-          </button>
-          <button type="button" className={billingInterval === "yearly" ? "billing-plan active" : "billing-plan"} onClick={() => setBillingInterval("yearly")}>
-            <span>Anual</span>
-            <b>R$ 600</b>
-            <small>2 meses grátis, após o teste</small>
-          </button>
-        </div>
+        <PlanOptions selectedPlan={billingInterval} onSelect={setBillingInterval} compact />
         <label>Nome da empresa<input value={businessName} onChange={(event) => setBusinessName(event.target.value)} autoComplete="organization" /></label>
         <label>Seu nome<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} autoComplete="name" /></label>
         <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
