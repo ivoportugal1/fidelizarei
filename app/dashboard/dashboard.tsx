@@ -221,33 +221,43 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
   async function uploadAsset(kind: "logo" | "cover", file?: File) {
     if (!file) return;
     setUploading(kind);
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/wallet/assets", { method: "POST", body: formData });
-    const body = await response.json();
-    setUploading(null);
-    if (!response.ok || !body.ok) {
-      onSave("Não consegui enviar a imagem. Use PNG, JPG ou WEBP com até 2 MB.");
-      return;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/wallet/assets", { method: "POST", body: formData });
+      const body = await response.json().catch(() => ({ ok: false }));
+      if (!response.ok || !body.ok) {
+        onSave("Não consegui enviar a imagem. Use PNG, JPG ou WEBP com até 2 MB.");
+        return;
+      }
+      update(kind === "logo" ? "logoUrl" : "coverUrl", body.url);
+    } catch {
+      onSave("Não consegui enviar a imagem. Tente novamente.");
+    } finally {
+      setUploading(null);
     }
-    update(kind === "logo" ? "logoUrl" : "coverUrl", body.url);
   }
 
   async function save() {
     setSaving(true);
-    const response = await fetch("/api/wallet/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings }),
-    });
-    const body = await response.json();
-    setSaving(false);
-    if (!response.ok || !body.ok) {
-      onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
-      return;
+    try {
+      const response = await fetch("/api/wallet/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings }),
+      });
+      const body = await response.json().catch(() => ({ ok: false }));
+      if (!response.ok || !body.ok) {
+        onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
+        return;
+      }
+      setSettings(body.settings);
+      onSave("Personalização do cartão salva.");
+    } catch {
+      onSave("Não consegui salvar. Tente novamente.");
+    } finally {
+      setSaving(false);
     }
-    setSettings(body.settings);
-    onSave("Personalização do cartão salva.");
   }
 
   return (

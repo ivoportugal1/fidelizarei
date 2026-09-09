@@ -49,75 +49,80 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  const context = await getContext(user.id);
-  if (!context) return NextResponse.json({ ok: false, error: "program_not_found" }, { status: 404 });
+  try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    const context = await getContext(user.id);
+    if (!context) return NextResponse.json({ ok: false, error: "program_not_found" }, { status: 404 });
 
-  const body = await request.json().catch(() => ({}));
-  const fallback = await getWalletCardSettings(context.organization_id, defaultsFrom(context), new URL(request.url).origin);
-  const settings = normalizeWalletSettings(body.settings ?? body, fallback);
-  const logoId = settings.logoUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
-  const coverId = settings.coverUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
+    const body = await request.json().catch(() => ({}));
+    const fallback = await getWalletCardSettings(context.organization_id, defaultsFrom(context), new URL(request.url).origin);
+    const settings = normalizeWalletSettings(body.settings ?? body, fallback);
+    const logoId = settings.logoUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
+    const coverId = settings.coverUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
 
-  await query(`
-    insert into wallet_card_settings (
-      organization_id, program_id, business_name, program_description, reward_text,
-      points_goal, point_theme, primary_color, secondary_color, background_color, text_color,
-      progress_label, reward_title, accumulation_text, completed_message, terms_text,
-      website_url, instagram_username, contact_phone, address_text,
-      logo_asset_id, cover_asset_id, updated_at
-    )
-    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, now())
-    on conflict (organization_id) do update set
-      program_id = excluded.program_id,
-      business_name = excluded.business_name,
-      program_description = excluded.program_description,
-      reward_text = excluded.reward_text,
-      points_goal = excluded.points_goal,
-      point_theme = excluded.point_theme,
-      primary_color = excluded.primary_color,
-      secondary_color = excluded.secondary_color,
-      background_color = excluded.background_color,
-      text_color = excluded.text_color,
-      progress_label = excluded.progress_label,
-      reward_title = excluded.reward_title,
-      accumulation_text = excluded.accumulation_text,
-      completed_message = excluded.completed_message,
-      terms_text = excluded.terms_text,
-      website_url = excluded.website_url,
-      instagram_username = excluded.instagram_username,
-      contact_phone = excluded.contact_phone,
-      address_text = excluded.address_text,
-      logo_asset_id = coalesce(excluded.logo_asset_id, wallet_card_settings.logo_asset_id),
-      cover_asset_id = coalesce(excluded.cover_asset_id, wallet_card_settings.cover_asset_id),
-      updated_at = now()`,
-    [
-      context.organization_id,
-      context.program_id,
-      settings.businessName,
-      settings.programDescription,
-      settings.rewardText,
-      settings.pointsGoal,
-      settings.pointTheme,
-      settings.primaryColor,
-      settings.secondaryColor,
-      settings.backgroundColor,
-      settings.textColor,
-      settings.progressLabel,
-      settings.rewardTitle,
-      settings.accumulationText,
-      settings.completedMessage,
-      settings.termsText,
-      settings.websiteUrl,
-      settings.instagramUsername,
-      settings.contactPhone,
-      settings.addressText,
-      logoId,
-      coverId,
-    ]);
+    await query(`
+      insert into wallet_card_settings (
+        organization_id, program_id, business_name, program_description, reward_text,
+        points_goal, point_theme, primary_color, secondary_color, background_color, text_color,
+        progress_label, reward_title, accumulation_text, completed_message, terms_text,
+        website_url, instagram_username, contact_phone, address_text,
+        logo_asset_id, cover_asset_id, updated_at
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+              $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now())
+      on conflict (organization_id) do update set
+        program_id = excluded.program_id,
+        business_name = excluded.business_name,
+        program_description = excluded.program_description,
+        reward_text = excluded.reward_text,
+        points_goal = excluded.points_goal,
+        point_theme = excluded.point_theme,
+        primary_color = excluded.primary_color,
+        secondary_color = excluded.secondary_color,
+        background_color = excluded.background_color,
+        text_color = excluded.text_color,
+        progress_label = excluded.progress_label,
+        reward_title = excluded.reward_title,
+        accumulation_text = excluded.accumulation_text,
+        completed_message = excluded.completed_message,
+        terms_text = excluded.terms_text,
+        website_url = excluded.website_url,
+        instagram_username = excluded.instagram_username,
+        contact_phone = excluded.contact_phone,
+        address_text = excluded.address_text,
+        logo_asset_id = coalesce(excluded.logo_asset_id, wallet_card_settings.logo_asset_id),
+        cover_asset_id = coalesce(excluded.cover_asset_id, wallet_card_settings.cover_asset_id),
+        updated_at = now()`,
+      [
+        context.organization_id,
+        context.program_id,
+        settings.businessName,
+        settings.programDescription,
+        settings.rewardText,
+        settings.pointsGoal,
+        settings.pointTheme,
+        settings.primaryColor,
+        settings.secondaryColor,
+        settings.backgroundColor,
+        settings.textColor,
+        settings.progressLabel,
+        settings.rewardTitle,
+        settings.accumulationText,
+        settings.completedMessage,
+        settings.termsText,
+        settings.websiteUrl,
+        settings.instagramUsername,
+        settings.contactPhone,
+        settings.addressText,
+        logoId,
+        coverId,
+      ]);
 
-  const saved = await getWalletCardSettings(context.organization_id, defaultsFrom(context), new URL(request.url).origin);
-  return NextResponse.json({ ok: true, settings: saved });
+    const saved = await getWalletCardSettings(context.organization_id, defaultsFrom(context), new URL(request.url).origin);
+    return NextResponse.json({ ok: true, settings: saved });
+  } catch (error) {
+    console.error("wallet_settings_save_error", error);
+    return NextResponse.json({ ok: false, error: "wallet_settings_save_error" }, { status: 500 });
+  }
 }
