@@ -98,22 +98,22 @@ function StatusChart({ data }: { data: PlatformAdminData }) {
 function CompanyRow({ company }: { company: PlatformCompany }) {
   return (
     <tr>
-      <td>
+      <td data-label="Empresa">
         <strong>{company.name}</strong>
         <small>{company.ownerName || "Responsável não informado"} · {company.ownerEmail || "email não informado"}</small>
       </td>
-      <td>{formatTaxId(company.taxId)}</td>
-      <td>
+      <td data-label="CPF/CNPJ">{formatTaxId(company.taxId)}</td>
+      <td data-label="Status">
         <span className={statusClass(company.billingStatus)}>{statusLabel(company.billingStatus)}</span>
       </td>
-      <td>{planLabel(company.billingInterval)}</td>
-      <td>{formatDate(company.createdAt)}</td>
-      <td>{formatDate(company.currentPeriodEnd || company.trialEndsAt)}</td>
-      <td>
+      <td data-label="Plano">{planLabel(company.billingInterval)}</td>
+      <td data-label="Cadastro">{formatDate(company.createdAt)}</td>
+      <td data-label="Validade">{formatDate(company.currentPeriodEnd || company.trialEndsAt)}</td>
+      <td data-label="Uso">
         <strong>{company.customersCount.toLocaleString("pt-BR")}</strong>
         <small>{company.redeemedCodesCount.toLocaleString("pt-BR")} QR usados · {company.activeCodesCount.toLocaleString("pt-BR")} ativos</small>
       </td>
-      <td>
+      <td data-label="Mercado Pago">
         <span className="admin-id">{shortId(company.mercadoPagoPreapprovalId)}</span>
         <small>{company.lastPaymentId ? `Pgto ${shortId(company.lastPaymentId)}` : "Sem pagamento confirmado"}</small>
       </td>

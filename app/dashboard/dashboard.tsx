@@ -98,9 +98,14 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
       <aside className="sidebar">
         <a className="brand" href="/">fideliza<span>.</span></a>
         <div className="company-switcher">
-          <div className="company-logo">{initialData.organization.name[0]}</div>
+          <div className="company-logo">
+            {initialData.walletSettings.logoUrl ? (
+              <img src={initialData.walletSettings.logoUrl} alt={`Logo ${initialData.organization.name}`} />
+            ) : (
+              initialData.organization.name[0]
+            )}
+          </div>
           <div><strong>{initialData.organization.name}</strong><small>Plano {planLabel(initialData.organization.billingInterval)}</small></div>
-          <span>⌄</span>
         </div>
         <nav>
           {["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão"].map((item) => (
@@ -110,7 +115,6 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button className="nav-item"><span>?</span>Central de ajuda</button>
           <button className="profile" onClick={logout}><span>{initials(initialData.user.name)}</span><b>Sair</b><i>↗</i></button>
         </div>
       </aside>
@@ -119,7 +123,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         <TrialBanner data={initialData} />
         <header className="topbar">
           <div><p>{new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase()}</p><h1>{active}</h1></div>
-          <div className="top-actions"><button className="icon-button">⌕</button><button className="icon-button notification">♧</button><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
+          <div className="top-actions"><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
         </header>
 
         {active === "Visão geral" ? <Overview data={initialData} onGenerate={() => setShowGenerator(true)} /> :
