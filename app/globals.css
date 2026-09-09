@@ -66,6 +66,10 @@
 .company-switcher { grid-template-columns:38px 1fr; }
 .company-logo { overflow:hidden; color:#173d20; }
 .company-logo img { width:100%; height:100%; object-fit:cover; display:block; }
+.wallet-form textarea { width:100%; border:1px solid #dfe2de; border-radius:8px; padding:10px 11px; color:var(--ink); background:#fff; resize:vertical; font:13px var(--font, Arial, sans-serif); }
+.apple-pass .pass-body { color:inherit; }
+.apple-pass .pass-progress-row span { color:color-mix(in srgb, currentColor 72%, transparent); }
+.apple-pass .pass-footer-grid small { color:color-mix(in srgb, currentColor 66%, transparent); }
 
 @media (max-width:600px) {
   .platform-admin { overflow-x:hidden; }

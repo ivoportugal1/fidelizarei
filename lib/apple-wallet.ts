@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { createHmac } from "node:crypto";
 import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import { query } from "./database";
@@ -52,6 +53,18 @@ type AppleCertificates = {
   signerCert: string;
   signerKey: string;
   wwdr: string;
+};
+
+const progressIcons: Record<string, { active: string; inactive: string }> = {
+  cafeteria: { active: "☕", inactive: "○" },
+  acaiteria: { active: "●", inactive: "○" },
+  sorveteria: { active: "🍦", inactive: "○" },
+  pizzaria: { active: "🍕", inactive: "○" },
+  hamburgueria: { active: "🍔", inactive: "○" },
+  padaria: { active: "🥐", inactive: "○" },
+  barbearia: { active: "✂️", inactive: "○" },
+  petshop: { active: "🐾", inactive: "○" },
+  universal: { active: "●", inactive: "○" },
 };
 
 function configured() {
@@ -114,6 +127,18 @@ function formatMemberSince(date: Date) {
     .replace(".", "");
 }
 
+function progressText(theme: string, current: number, total: number) {
+  const icons = progressIcons[theme] ?? progressIcons.universal;
+  const limit = Math.max(1, Math.min(total, 20));
+  return Array.from({ length: limit }).map((_, index) => index < current ? icons.active : icons.inactive).join(" ");
+}
+
+function passAuthToken(serialNumber: string) {
+  const secret = process.env.APPLE_PASS_AUTH_SECRET || process.env.CUSTOMER_SESSION_SECRET || process.env.APPLE_PASS_CERTIFICATE_PASSWORD;
+  if (!secret) throw new Error("apple_wallet_not_configured");
+  return createHmac("sha256", secret).update(serialNumber).digest("hex");
+}
+
 async function getFallbackLogo() {
   return readFile(path.join(process.cwd(), "public", "logo-fidelizarei-transparent.png"));
 }
@@ -138,6 +163,8 @@ function passJson(input: {
   backgroundColor: string;
   foregroundColor: string;
   labelColor: string;
+  webServiceURL: string;
+  authenticationToken: string;
 }) {
   const passTypeIdentifier = process.env.APPLE_PASS_TYPE_IDENTIFIER;
   const teamIdentifier = process.env.APPLE_TEAM_IDENTIFIER;
@@ -154,6 +181,8 @@ function passJson(input: {
     backgroundColor: input.backgroundColor,
     foregroundColor: input.foregroundColor,
     labelColor: input.labelColor,
+    webServiceURL: input.webServiceURL,
+    authenticationToken: input.authenticationToken,
     sharingProhibited: false,
     storeCard: {
       primaryFields: [],
@@ -164,7 +193,7 @@ function passJson(input: {
   };
 }
 
-export async function createAppleWalletPass(customerId: string, origin: string) {
+export async function createAppleWalletPass(customerId: string, origin: string, expectedSerialNumber?: string) {
   if (!configured()) throw new Error("apple_wallet_not_configured");
 
   const result = await query<AppleWalletContext>(`
@@ -193,10 +222,14 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
   }), origin);
 
   const serialNumber = `apple-${context.customer_id}-${context.program_id}`;
+  if (expectedSerialNumber && expectedSerialNumber !== serialNumber) throw new Error("pass_not_found");
   const customerName = context.full_name || context.phone_e164 || "Cliente";
   const currentPoints = Number(context.points);
   const pointsGoal = Number(settings.pointsGoal || context.points_to_reward);
   const remaining = Math.max(pointsGoal - currentPoints, 0);
+  const completed = currentPoints >= pointsGoal || Number(context.rewards_available) > 0;
+  const statusText = completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`;
+  const token = passAuthToken(serialNumber);
   const certificates = extractCertificatesFromP12();
   const brandLogo = await getFallbackLogo();
   const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
@@ -208,8 +241,10 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
       organizationName: settings.businessName,
       description: settings.programDescription,
       backgroundColor: hexToRgb(settings.primaryColor),
-      foregroundColor: "rgb(255, 255, 255)",
+      foregroundColor: hexToRgb(settings.textColor),
       labelColor: hexToRgb(settings.secondaryColor),
+      webServiceURL: `${origin}/api/wallet/apple`,
+      authenticationToken: token,
     }))),
     "icon.png": brandLogo,
     "icon@2x.png": brandLogo,
@@ -225,14 +260,19 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
   }, certificates);
 
   pass.primaryFields.push({
-    key: "points",
-    label: "SEU PROGRESSO",
-    value: `${currentPoints} de ${pointsGoal}`,
+    key: "offer",
+    label: "RECOMPENSA",
+    value: settings.rewardTitle,
   });
   pass.secondaryFields.push({
-    key: "reward",
-    label: "RECOMPENSA",
-    value: `Compre ${pointsGoal} e ganhe ${settings.rewardText}`,
+    key: "progress_visual",
+    label: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
+    value: progressText(settings.pointTheme, currentPoints, pointsGoal),
+  });
+  pass.auxiliaryFields.push({
+    key: "reward_status",
+    label: "STATUS",
+    value: statusText,
   });
   pass.auxiliaryFields.push({
     key: "customer",
@@ -246,8 +286,8 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
   });
   pass.headerFields.push({
     key: "status",
-    label: "PONTOS",
-    value: String(currentPoints),
+    label: settings.progressLabel.toUpperCase(),
+    value: `${currentPoints}/${pointsGoal}`,
   });
   pass.backFields.push({
     key: "program",
@@ -257,13 +297,53 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
   pass.backFields.push({
     key: "rule",
     label: "Como funciona",
-    value: `${pointsGoal} pontos/compras liberam ${settings.rewardText}. Faltam ${remaining} para a próxima recompensa.`,
+    value: settings.accumulationText,
+  });
+  pass.backFields.push({
+    key: "progress",
+    label: "Progresso",
+    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}. ${statusText}.`,
   });
   pass.backFields.push({
     key: "rewards",
     label: "Recompensas disponíveis",
     value: String(context.rewards_available),
   });
+  if (settings.termsText) {
+    pass.backFields.push({
+      key: "terms",
+      label: "Termos e condições",
+      value: settings.termsText,
+    });
+  }
+  if (settings.addressText) {
+    pass.backFields.push({
+      key: "address",
+      label: "Endereço",
+      value: settings.addressText,
+    });
+  }
+  if (settings.instagramUsername) {
+    pass.backFields.push({
+      key: "instagram",
+      label: "Instagram",
+      value: `@${settings.instagramUsername}`,
+    });
+  }
+  if (settings.websiteUrl) {
+    pass.backFields.push({
+      key: "website",
+      label: "Site",
+      value: settings.websiteUrl,
+    });
+  }
+  if (settings.contactPhone) {
+    pass.backFields.push({
+      key: "phone",
+      label: "Telefone",
+      value: settings.contactPhone,
+    });
+  }
   pass.backFields.push({
     key: "powered_by",
     label: "Powered by",
@@ -271,13 +351,26 @@ export async function createAppleWalletPass(customerId: string, origin: string) 
   });
 
   await query(`
-    insert into wallet_passes (customer_id, program_id, platform, serial_number)
-    values ($1, $2, 'apple', $3)
-    on conflict (customer_id, program_id, platform) do update set status = 'active'`,
-    [context.customer_id, context.program_id, serialNumber]);
+    insert into wallet_passes (customer_id, program_id, platform, serial_number, authentication_token, updated_at)
+    values ($1, $2, 'apple', $3, $4, now())
+    on conflict (customer_id, program_id, platform) do update set
+      status = 'active',
+      authentication_token = excluded.authentication_token,
+      updated_at = now()`,
+    [context.customer_id, context.program_id, serialNumber, token]);
 
   return {
     buffer: pass.getAsBuffer(),
     filename: `${settings.businessName.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-|-$/g, "") || "fidelizarei"}.pkpass`,
   };
+}
+
+export async function validateApplePassAuth(serialNumber: string, authorization: string | null) {
+  const [, token] = authorization?.match(/^ApplePass\s+(.+)$/) ?? [];
+  if (!token || token !== passAuthToken(serialNumber)) return null;
+  const result = await query<{ customer_id: string }>(
+    "select customer_id from wallet_passes where platform = 'apple' and serial_number = $1 and status = 'active' limit 1",
+    [serialNumber],
+  );
+  return result.rows[0]?.customer_id ?? null;
 }

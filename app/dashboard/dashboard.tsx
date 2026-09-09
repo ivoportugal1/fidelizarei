@@ -36,6 +36,18 @@ const previewCustomer = {
   memberSince: "Set 2026",
 };
 
+const progressEmoji: Record<PointTheme, string> = {
+  cafeteria: "☕",
+  acaiteria: "🥣",
+  sorveteria: "🍦",
+  pizzaria: "🍕",
+  hamburgueria: "🍔",
+  padaria: "🥐",
+  barbearia: "✂️",
+  petshop: "🐾",
+  universal: "●",
+};
+
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -273,16 +285,41 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
           </div>
 
           <div className="wallet-form-section">
+            <h3>Oferta e textos do programa</h3>
+            <label>Título principal da oferta<input value={settings.rewardTitle} onChange={(e) => update("rewardTitle", e.target.value)} placeholder="Ex: Compre 7 e ganhe uma recompensa" /></label>
+            <div className="form-row">
+              <label>Nome da unidade de progresso<input value={settings.progressLabel} onChange={(e) => update("progressLabel", e.target.value)} placeholder="compras, pontos, visitas..." /></label>
+              <label>Mensagem ao completar<input value={settings.completedMessage} onChange={(e) => update("completedMessage", e.target.value)} /></label>
+            </div>
+            <label>Como acumular<textarea value={settings.accumulationText} onChange={(e) => update("accumulationText", e.target.value)} rows={3} /></label>
+            <label>Termos e condições<textarea value={settings.termsText} onChange={(e) => update("termsText", e.target.value)} rows={3} placeholder="Opcional. Aparece nos detalhes do cartão." /></label>
+          </div>
+
+          <div className="wallet-form-section">
             <h3>Visual e progresso</h3>
             <div className="form-row">
               <label>Cor principal<div className="color-input"><input type="color" value={settings.primaryColor} onChange={(e) => update("primaryColor", e.target.value)} /><span>{settings.primaryColor.toUpperCase()}</span></div></label>
               <label>Cor secundária<div className="color-input"><input type="color" value={settings.secondaryColor} onChange={(e) => update("secondaryColor", e.target.value)} /><span>{settings.secondaryColor.toUpperCase()}</span></div></label>
             </div>
             <div className="form-row">
+              <label>Cor de fundo<div className="color-input"><input type="color" value={settings.backgroundColor} onChange={(e) => update("backgroundColor", e.target.value)} /><span>{settings.backgroundColor.toUpperCase()}</span></div></label>
+              <label>Cor dos textos<div className="color-input"><input type="color" value={settings.textColor} onChange={(e) => update("textColor", e.target.value)} /><span>{settings.textColor.toUpperCase()}</span></div></label>
+            </div>
+            <div className="form-row">
               <label>Meta de pontos/compras<input type="number" min="1" max="20" value={settings.pointsGoal} onChange={(e) => update("pointsGoal", Number(e.target.value))} /></label>
               <label>Tema de pontuação<select value={settings.pointTheme} onChange={(e) => update("pointTheme", e.target.value as PointTheme)}>{pointThemes.map((theme) => <option key={theme.value} value={theme.value}>{theme.label}</option>)}</select></label>
             </div>
             <p className="editor-note">A meta aqui controla a apresentação visual do cartão. A regra operacional de pontos continua separada.</p>
+          </div>
+
+          <div className="wallet-form-section">
+            <h3>Contato do estabelecimento</h3>
+            <label>Site<input value={settings.websiteUrl} onChange={(e) => update("websiteUrl", e.target.value)} placeholder="https://..." /></label>
+            <div className="form-row">
+              <label>Instagram<input value={settings.instagramUsername} onChange={(e) => update("instagramUsername", e.target.value)} placeholder="@empresa" /></label>
+              <label>Telefone<input value={settings.contactPhone} onChange={(e) => update("contactPhone", e.target.value)} placeholder="(00) 00000-0000" /></label>
+            </div>
+            <label>Endereço<textarea value={settings.addressText} onChange={(e) => update("addressText", e.target.value)} rows={2} placeholder="Opcional" /></label>
           </div>
         </article>
 
@@ -321,24 +358,29 @@ function PointIcon({ theme }: { theme: PointTheme }) {
 }
 
 function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
-  return <div className="apple-pass">
+  const completed = points >= settings.pointsGoal;
+  const remaining = Math.max(settings.pointsGoal - points, 0);
+  return <div className="apple-pass" style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}>
     <div className="pass-hero" style={{ backgroundColor: settings.primaryColor, "--accent-color": settings.secondaryColor } as CSSProperties}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="pass-hero-shade" /><div className="merchant-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><strong>{settings.businessName}</strong><small>{settings.programDescription}</small></div>
     <div className="pass-body">
-      <h3>Compre {settings.pointsGoal} e ganhe {settings.rewardText}</h3>
+      <h3>{settings.rewardTitle}</h3>
       <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} />
-      <div className="pass-progress-row"><b>{points} de {settings.pointsGoal}</b><span>Faltam {Math.max(settings.pointsGoal - points, 0)} para sua recompensa</span></div>
+      <div className="pass-progress-row"><b>{points} de {settings.pointsGoal} {settings.progressLabel}</b><span>{completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`}</span></div>
       <div className="pass-footer-grid"><div><small>CLIENTE</small><b>{previewCustomer.name}</b></div><div><small>MEMBRO DESDE</small><b>{previewCustomer.memberSince}</b></div><PoweredBy /></div>
     </div>
   </div>;
 }
 
 function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
+  const completed = points >= settings.pointsGoal;
+  const remaining = Math.max(settings.pointsGoal - points, 0);
   return <div className="google-pass" style={{ "--google-primary": settings.primaryColor, "--google-secondary": settings.secondaryColor } as CSSProperties}>
     <div className="google-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="google-hero-shade" /><div><small>Google Wallet</small><strong>{settings.businessName}</strong><span>{settings.programDescription}</span></div></div>
     <div className="google-pass-head"><div className="google-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 10h14v10H5z"/><path d="M4 10h16V7H4z"/><path d="M12 7v13"/><path d="M8.5 7C6 5 8.5 3 12 7c3.5-4 6-2 3.5 0"/></svg></span><div><b>Recompensa</b><p>{settings.rewardText}</p></div></div>
-    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} /></div></div>
-    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>A cada compra válida, o cliente ganha 1 ponto.</p></div></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal} {settings.progressLabel}. {completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}.`}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} /></div></div>
+    <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>{settings.accumulationText}</p></div></div>
+    {(settings.websiteUrl || settings.instagramUsername || settings.contactPhone || settings.addressText) && <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M12 21s7-5.2 7-11a7 7 0 0 0-14 0c0 5.8 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span><div><b>Contato</b><p>{[settings.websiteUrl, settings.instagramUsername ? `@${settings.instagramUsername}` : "", settings.contactPhone, settings.addressText].filter(Boolean).join(" · ")}</p></div></div>}
   </div>;
 }
 

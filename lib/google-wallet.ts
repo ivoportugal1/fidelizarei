@@ -17,6 +17,7 @@ type WalletContext = {
   customer_id: string;
   full_name: string | null;
   phone_e164: string | null;
+  customer_created_at: Date;
   organization_id: string;
   organization_name: string;
   program_id: string;
@@ -26,6 +27,18 @@ type WalletContext = {
   pass_background_color: string;
   points: number;
   rewards_available: number;
+};
+
+const progressIcons: Record<string, { active: string; inactive: string }> = {
+  cafeteria: { active: "☕", inactive: "○" },
+  acaiteria: { active: "●", inactive: "○" },
+  sorveteria: { active: "🍦", inactive: "○" },
+  pizzaria: { active: "🍕", inactive: "○" },
+  hamburgueria: { active: "🍔", inactive: "○" },
+  padaria: { active: "🥐", inactive: "○" },
+  barbearia: { active: "✂️", inactive: "○" },
+  petshop: { active: "🐾", inactive: "○" },
+  universal: { active: "●", inactive: "○" },
 };
 
 function base64url(value: unknown) {
@@ -117,13 +130,25 @@ function suffix(value: string) {
   return value.replace(/[^A-Za-z0-9_.-]/g, "_");
 }
 
+function progressText(theme: string, current: number, total: number) {
+  const icons = progressIcons[theme] ?? progressIcons.universal;
+  const limit = Math.max(1, Math.min(total, 20));
+  return Array.from({ length: limit }).map((_, index) => index < current ? icons.active : icons.inactive).join(" ");
+}
+
+function formatMemberSince(date: Date) {
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" })
+    .format(date)
+    .replace(".", "");
+}
+
 export async function createGoogleWalletSaveLink(customerId: string, origin: string) {
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
   if (!issuerId) throw new Error("google_wallet_not_configured");
 
   const credentials = parseServiceAccount();
   const result = await query<WalletContext>(`
-    select c.id as customer_id, c.full_name, c.phone_e164,
+    select c.id as customer_id, c.full_name, c.phone_e164, c.created_at as customer_created_at,
            o.id as organization_id, o.name as organization_name,
            p.id as program_id, p.name as program_name, p.reward_name, p.points_to_reward,
            p.pass_background_color,
@@ -148,6 +173,16 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     pointsToReward: context.points_to_reward,
     backgroundColor: context.pass_background_color,
   }), origin);
+  const points = Number(context.points);
+  const goal = Number(settings.pointsGoal || context.points_to_reward);
+  const remaining = Math.max(goal - points, 0);
+  const completed = points >= goal || Number(context.rewards_available) > 0;
+  const statusText = completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`;
+  const contactLinks = [
+    ...(settings.websiteUrl ? [{ uri: settings.websiteUrl, description: "Site", id: "website" }] : []),
+    ...(settings.instagramUsername ? [{ uri: `https://instagram.com/${settings.instagramUsername}`, description: "Instagram", id: "instagram" }] : []),
+    ...(settings.contactPhone ? [{ uri: `tel:${settings.contactPhone.replace(/[^\d+]/g, "")}`, description: "Telefone", id: "phone" }] : []),
+  ];
 
   const loyaltyClass = {
     id: classId,
@@ -177,6 +212,24 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
         },
       },
     } : {}),
+    textModulesData: [
+      {
+        header: "Oferta",
+        body: settings.rewardTitle,
+        id: "offer",
+      },
+      {
+        header: "Como acumular",
+        body: settings.accumulationText,
+        id: "accumulation",
+      },
+      ...(settings.termsText ? [{
+        header: "Termos e condições",
+        body: settings.termsText,
+        id: "terms",
+      }] : []),
+    ],
+    ...(contactLinks.length ? { linksModuleData: { uris: contactLinks } } : {}),
   };
 
   const loyaltyObject = {
@@ -186,23 +239,38 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     accountId: context.customer_id,
     accountName,
     loyaltyPoints: {
-      label: "Pontos",
-      balance: { int: Number(context.points) },
+      label: settings.progressLabel,
+      balance: { int: points },
     },
     textModulesData: [
+      {
+        header: "Recompensa",
+        body: settings.rewardText,
+        id: "reward",
+      },
+      {
+        header: "Seu progresso",
+        body: `${points} de ${goal} ${settings.progressLabel}\n${progressText(settings.pointTheme, points, goal)}\n${statusText}`,
+        id: "progress",
+      },
+      {
+        header: "Cliente desde",
+        body: formatMemberSince(new Date(context.customer_created_at)),
+        id: "member_since",
+      },
       {
         header: "Recompensas disponíveis",
         body: String(context.rewards_available),
         id: "rewards_available",
       },
-      {
-        header: "Regra",
-        body: `${settings.pointsGoal} pontos = ${settings.rewardText}`,
-        id: "reward_rule",
-      },
+      ...(settings.addressText ? [{
+        header: "Endereço",
+        body: settings.addressText,
+        id: "address",
+      }] : []),
       {
         header: "Fornecido por",
-        body: "Powered by fidelizarei",
+        body: "Powered by Fidelizarei",
         id: "powered_by",
       },
     ],

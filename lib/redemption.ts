@@ -52,6 +52,10 @@ async function redeemWithClient(client: PoolClient, code: string, customerId: st
   await client.query(`insert into wallet_update_jobs (wallet_pass_id, event)
                       select id, $3 from wallet_passes where customer_id = $1 and program_id = $2 and status = 'active'`,
                     [customerId, record.program_id, event]);
+  await client.query(
+    "update wallet_passes set updated_at = now() where customer_id = $1 and program_id = $2 and status = 'active'",
+    [customerId, record.program_id],
+  );
   return { points: balance.points, rewards_available: balance.rewards_available, points_to_reward: record.points_to_reward };
 }
 
