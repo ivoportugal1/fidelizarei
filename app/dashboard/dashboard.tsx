@@ -218,19 +218,47 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
     setSettings((current) => ({ ...current, [key]: value }));
   };
 
+  async function persistSettings(nextSettings: WalletSettings, successMessage: string) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/wallet/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: nextSettings }),
+      });
+      const body = await response.json().catch(() => ({ ok: false }));
+      if (!response.ok || !body.ok) {
+        onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
+        return false;
+      }
+      setSettings(body.settings);
+      onSave(successMessage);
+      return true;
+    } catch {
+      onSave("Não consegui salvar. Tente novamente.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function uploadAsset(kind: "logo" | "cover", file?: File) {
     if (!file) return;
     setUploading(kind);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("kind", kind);
       const response = await fetch("/api/wallet/assets", { method: "POST", body: formData });
       const body = await response.json().catch(() => ({ ok: false }));
       if (!response.ok || !body.ok) {
         onSave("Não consegui enviar a imagem. Use PNG, JPG ou WEBP com até 2 MB.");
         return;
       }
-      update(kind === "logo" ? "logoUrl" : "coverUrl", body.url);
+      const key = kind === "logo" ? "logoUrl" : "coverUrl";
+      const nextSettings = { ...settings, [key]: body.url } as WalletSettings;
+      setSettings(nextSettings);
+      await persistSettings(nextSettings, kind === "logo" ? "Logo salva." : "Foto/capa salva.");
     } catch {
       onSave("Não consegui enviar a imagem. Tente novamente.");
     } finally {
@@ -239,25 +267,7 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
   }
 
   async function save() {
-    setSaving(true);
-    try {
-      const response = await fetch("/api/wallet/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings }),
-      });
-      const body = await response.json().catch(() => ({ ok: false }));
-      if (!response.ok || !body.ok) {
-        onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
-        return;
-      }
-      setSettings(body.settings);
-      onSave("Personalização do cartão salva.");
-    } catch {
-      onSave("Não consegui salvar. Tente novamente.");
-    } finally {
-      setSaving(false);
-    }
+    await persistSettings(settings, "Personalização do cartão salva.");
   }
 
   return (

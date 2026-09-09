@@ -244,8 +244,11 @@ async function fetchPngAsset(url: string | null) {
     const response = await fetch(url);
     if (!response.ok) return null;
     const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("image/png")) return null;
-    return Buffer.from(await response.arrayBuffer());
+    if (!contentType.startsWith("image/")) return null;
+    return sharp(Buffer.from(await response.arrayBuffer()))
+      .resize(900, 900, { fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer();
   } catch {
     return null;
   }
@@ -372,7 +375,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     altText: `${settings.businessName} · ${displayName}`,
   });
 
-  pass.primaryFields.push({
+  pass.secondaryFields.push({
     key: "name",
     label: "NOME",
     value: shortField(displayName, 18),
