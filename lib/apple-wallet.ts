@@ -56,18 +56,6 @@ type AppleCertificates = {
   wwdr: string;
 };
 
-const progressIcons: Record<string, { active: string; inactive: string }> = {
-  cafeteria: { active: "☕", inactive: "○" },
-  acaiteria: { active: "●", inactive: "○" },
-  sorveteria: { active: "🍦", inactive: "○" },
-  pizzaria: { active: "🍕", inactive: "○" },
-  hamburgueria: { active: "🍔", inactive: "○" },
-  padaria: { active: "🥐", inactive: "○" },
-  barbearia: { active: "✂️", inactive: "○" },
-  petshop: { active: "🐾", inactive: "○" },
-  universal: { active: "●", inactive: "○" },
-};
-
 function configured() {
   return Boolean(
     process.env.APPLE_PASS_TYPE_IDENTIFIER &&
@@ -135,9 +123,9 @@ function formatValidUntil(date: Date) {
 }
 
 function progressText(theme: string, current: number, total: number) {
-  const icons = progressIcons[theme] ?? progressIcons.universal;
   const limit = Math.max(1, Math.min(total, 20));
-  return Array.from({ length: limit }).map((_, index) => index < current ? icons.active : icons.inactive).join(" ");
+  if (limit > 12) return `${Math.min(current, total)} de ${total}`;
+  return Array.from({ length: limit }).map((_, index) => index < current ? "●" : "○").join(" ");
 }
 
 function xmlEscape(value: string) {
@@ -164,6 +152,13 @@ function shortField(value: string, max = 44) {
   return clean.length > max ? `${clean.slice(0, max - 1).trim()}…` : clean;
 }
 
+function titleCaseName(value: string) {
+  return value
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|\s|-)(\p{L})/gu, (_, separator: string, letter: string) => `${separator}${letter.toLocaleUpperCase("pt-BR")}`)
+    .trim();
+}
+
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || value;
 }
@@ -182,7 +177,6 @@ async function buildAppleStripImages(input: {
   const height = 432;
   const safeBusiness = xmlEscape(shortField(settings.businessName.toLowerCase(), 28));
   const safeProgram = xmlEscape(shortField(settings.programDescription || "Programa de Fidelidade", 34).toUpperCase());
-  const safeReward = xmlEscape(shortField(settings.rewardTitle, 42));
   const logoData = `data:image/png;base64,${merchantLogo.toString("base64")}`;
   const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
   const cardGreen = settings.primaryColor || "#06420D";
@@ -211,12 +205,10 @@ async function buildAppleStripImages(input: {
     <text x="1030" y="52" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="850" letter-spacing="3" fill="${accent}">${xmlEscape(settings.progressLabel.toUpperCase())}</text>
     <text x="1030" y="100" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="400" fill="${foreground}">${currentPoints}/${pointsGoal}</text>
     ${coverData ? `<image href="${coverData}" x="0" y="132" width="${width}" height="300" preserveAspectRatio="xMidYMid slice" opacity=".52"/>` : ""}
-    <rect x="0" y="132" width="${width}" height="300" fill="#03150B" opacity="${coverData ? ".54" : ".78"}"/>
+    <rect x="0" y="132" width="${width}" height="300" fill="#03150B" opacity="${coverData ? ".42" : ".72"}"/>
     <rect x="0" y="132" width="${width}" height="300" fill="url(#glow)" opacity=".85"/>
-    <circle cx="562" cy="278" r="130" fill="none" stroke="${foreground}" stroke-opacity=".38" stroke-width="14"/>
-    <image href="${logoData}" x="420" y="136" width="284" height="284" preserveAspectRatio="xMidYMid meet" opacity=".62"/>
-    <text x="56" y="395" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="850" letter-spacing="4" fill="${accent}">${safeProgram}</text>
-    <text x="1068" y="395" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" fill="${foreground}" opacity=".9">${safeReward}</text>
+    <text x="56" y="330" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="900" letter-spacing="-1.6" fill="${foreground}">${safeBusiness}</text>
+    <text x="58" y="382" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="850" letter-spacing="5" fill="${accent}">${safeProgram}</text>
   </svg>`;
 
   const source = Buffer.from(svg);
@@ -321,7 +313,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
 
   const serialNumber = `apple-${context.customer_id}-${context.program_id}`;
   if (expectedSerialNumber && expectedSerialNumber !== serialNumber) throw new Error("pass_not_found");
-  const customerName = context.full_name || context.phone_e164 || "Cliente";
+  const customerName = titleCaseName(context.full_name || context.phone_e164 || "Cliente");
   const displayName = firstName(customerName);
   const currentPoints = Number(context.points);
   const pointsGoal = Number(settings.pointsGoal || context.points_to_reward);
@@ -368,42 +360,50 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "strip@3x.png": stripImages.x3,
   }, certificates);
 
-  pass.setBarcodes({
-    format: "PKBarcodeFormatQR",
-    message: serialNumber,
-    messageEncoding: "iso-8859-1",
-    altText: `${settings.businessName} · ${displayName}`,
+  pass.primaryFields.push({
+    key: "offer",
+    label: "PROGRAMA DE FIDELIDADE",
+    value: shortField(settings.rewardTitle, 34),
   });
-
   pass.secondaryFields.push({
-    key: "name",
-    label: "NOME",
+    key: "progress_visual",
+    label: "SEU PROGRESSO",
+    value: progressText(settings.pointTheme, currentPoints, pointsGoal),
+  });
+  pass.secondaryFields.push({
+    key: "progress_count",
+    label: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
+    value: completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`,
+  });
+  pass.auxiliaryFields.push({
+    key: "customer",
+    label: "CLIENTE",
     value: shortField(displayName, 18),
   });
-  pass.secondaryFields.push({
-    key: "status_field",
-    label: "STATUS",
-    value: completed ? "Disponível" : "Ativo",
-  });
-  pass.secondaryFields.push({
-    key: "valid_until",
-    label: "VÁLIDO ATÉ",
-    value: formatValidUntil(new Date(context.customer_created_at)),
-  });
   pass.auxiliaryFields.push({
-    key: "reward",
-    label: "RECOMPENSA",
-    value: shortField(settings.rewardText, 26),
-  });
-  pass.auxiliaryFields.push({
-    key: "progress_native",
-    label: "PROGRESSO",
-    value: `${currentPoints}/${pointsGoal} ${settings.progressLabel}`,
+    key: "member_since",
+    label: "MEMBRO DESDE",
+    value: formatMemberSince(new Date(context.customer_created_at)),
   });
   pass.headerFields.push({
     key: "stamps",
     label: settings.progressLabel.toUpperCase(),
     value: `${currentPoints}/${pointsGoal}`,
+  });
+  pass.backFields.push({
+    key: "status",
+    label: "Status",
+    value: completed ? "Recompensa disponível" : "Ativo",
+  });
+  pass.backFields.push({
+    key: "valid_until",
+    label: "Válido até",
+    value: formatValidUntil(new Date(context.customer_created_at)),
+  });
+  pass.backFields.push({
+    key: "reward",
+    label: "Recompensa",
+    value: settings.rewardText,
   });
   pass.backFields.push({
     key: "customer",

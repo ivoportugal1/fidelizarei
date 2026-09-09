@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { getCurrentUser } from "@/lib/auth";
 import { query } from "@/lib/database";
 import { assetUrl, defaultWalletSettings } from "@/lib/wallet-settings";
@@ -17,6 +18,71 @@ type ContextRow = {
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const MAX_BYTES = 2 * 1024 * 1024;
+
+function isNearWhite(red: number, green: number, blue: number, alpha: number) {
+  if (alpha < 8) return true;
+  const min = Math.min(red, green, blue);
+  const max = Math.max(red, green, blue);
+  return min >= 238 && max - min <= 24;
+}
+
+async function processLogoAsset(input: Buffer) {
+  const source = sharp(input).rotate().ensureAlpha().resize(1024, 1024, {
+    fit: "inside",
+    withoutEnlargement: true,
+  });
+  const { data, info } = await source.raw().toBuffer({ resolveWithObject: true });
+  const width = info.width;
+  const height = info.height;
+  const visited = new Uint8Array(width * height);
+  const stack: number[] = [];
+
+  const enqueue = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const pixel = y * width + x;
+    if (visited[pixel]) return;
+    const offset = pixel * 4;
+    if (!isNearWhite(data[offset], data[offset + 1], data[offset + 2], data[offset + 3])) return;
+    visited[pixel] = 1;
+    stack.push(pixel);
+  };
+
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x, 0);
+    enqueue(x, height - 1);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(0, y);
+    enqueue(width - 1, y);
+  }
+
+  while (stack.length) {
+    const pixel = stack.pop()!;
+    const x = pixel % width;
+    const y = Math.floor(pixel / width);
+    const offset = pixel * 4;
+    data[offset + 3] = 0;
+    enqueue(x + 1, y);
+    enqueue(x - 1, y);
+    enqueue(x, y + 1);
+    enqueue(x, y - 1);
+  }
+
+  return sharp(data, { raw: { width, height, channels: 4 } })
+    .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 4 })
+    .extend({ top: 24, bottom: 24, left: 24, right: 24, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(512, 512, { fit: "inside", withoutEnlargement: true, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+}
+
+async function processCoverAsset(input: Buffer) {
+  return sharp(input)
+    .rotate()
+    .resize(1600, 900, { fit: "cover", withoutEnlargement: false })
+    .png()
+    .toBuffer();
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -42,11 +108,12 @@ export async function POST(request: Request) {
   if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "invalid_file_type" }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ ok: false, error: "file_too_large" }, { status: 400 });
 
-  const data = Buffer.from(await file.arrayBuffer());
+  const original = Buffer.from(await file.arrayBuffer());
+  const data = kind === "logo" ? await processLogoAsset(original) : await processCoverAsset(original);
   const result = await query<{ id: string }>(`
     insert into wallet_card_assets (organization_id, filename, content_type, data)
     values ($1, $2, $3, $4)
-    returning id`, [row.organization_id, file.name || "wallet-image", file.type, data]);
+    returning id`, [row.organization_id, `${kind}-${Date.now()}.png`, "image/png", data]);
 
   const id = result.rows[0].id;
   const defaults = defaultWalletSettings({
