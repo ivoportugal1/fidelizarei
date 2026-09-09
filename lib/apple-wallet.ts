@@ -3,8 +3,9 @@ import path from "node:path";
 import { createHmac } from "node:crypto";
 import forge from "node-forge";
 import { PKPass } from "passkit-generator";
+import sharp from "sharp";
 import { query } from "./database";
-import { defaultWalletSettings, getWalletCardSettings } from "./wallet-settings";
+import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 const APPLE_WWDR_G4_PEM = `-----BEGIN CERTIFICATE-----
 MIIEVTCCAz2gAwIBAgIUE9x3lVJx5T3GMujM/+Uh88zFztIwDQYJKoZIhvcNAQEL
@@ -133,6 +134,103 @@ function progressText(theme: string, current: number, total: number) {
   return Array.from({ length: limit }).map((_, index) => index < current ? icons.active : icons.inactive).join(" ");
 }
 
+function xmlEscape(value: string) {
+  return value.replace(/[<>&"']/g, (char) => ({
+    "<": "&lt;",
+    ">": "&gt;",
+    "&": "&amp;",
+    '"': "&quot;",
+    "'": "&apos;",
+  })[char] ?? char);
+}
+
+function readableOn(color: string) {
+  const normalized = /^#[0-9A-Fa-f]{6}$/.test(color) ? color : "#173D20";
+  const red = Number.parseInt(normalized.slice(1, 3), 16);
+  const green = Number.parseInt(normalized.slice(3, 5), 16);
+  const blue = Number.parseInt(normalized.slice(5, 7), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.62 ? "#173D20" : "#FFF8E8";
+}
+
+function shortField(value: string, max = 44) {
+  const clean = value.replace(/\s+/g, " ").trim();
+  return clean.length > max ? `${clean.slice(0, max - 1).trim()}…` : clean;
+}
+
+async function buildAppleStripImages(input: {
+  settings: WalletCardSettings;
+  customerName: string;
+  currentPoints: number;
+  pointsGoal: number;
+  statusText: string;
+  merchantLogo: Buffer;
+  coverImage: Buffer | null;
+}) {
+  const { settings, customerName, currentPoints, pointsGoal, statusText, merchantLogo, coverImage } = input;
+  const width = 1125;
+  const height = 432;
+  const safeBusiness = xmlEscape(shortField(settings.businessName, 28));
+  const safeProgram = xmlEscape(shortField(settings.programDescription || "Programa de Fidelidade", 34).toUpperCase());
+  const safeReward = xmlEscape(shortField(settings.rewardTitle, 42));
+  const safeCustomer = xmlEscape(shortField(customerName, 28));
+  const safeStatus = xmlEscape(shortField(statusText, 36));
+  const logoData = `data:image/png;base64,${merchantLogo.toString("base64")}`;
+  const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
+  const foreground = readableOn(settings.primaryColor);
+  const accent = settings.secondaryColor;
+  const cup = settings.pointTheme === "cafeteria" ? "☕" : "●";
+  const marks = Array.from({ length: Math.max(1, Math.min(pointsGoal, 10)) }).map((_, index) => {
+    const filled = index < currentPoints;
+    const x = 78 + index * 70;
+    return `<g transform="translate(${x} 310)">
+      <circle cx="0" cy="0" r="25" fill="${filled ? accent : "rgba(255,248,232,.82)"}" stroke="${foreground}" stroke-opacity=".58" stroke-width="2"/>
+      <text x="0" y="8" text-anchor="middle" font-size="24" font-weight="800" fill="${filled ? "#173D20" : settings.primaryColor}">${settings.pointTheme === "cafeteria" ? cup : index + 1}</text>
+    </g>`;
+  }).join("");
+
+  const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="${settings.primaryColor}"/>
+        <stop offset=".62" stop-color="#173D20"/>
+        <stop offset="1" stop-color="#071C0F"/>
+      </linearGradient>
+      <radialGradient id="glow" cx=".74" cy=".2" r=".7">
+        <stop offset="0" stop-color="${accent}" stop-opacity=".32"/>
+        <stop offset="1" stop-color="${accent}" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#071C0F" flood-opacity=".28"/>
+      </filter>
+    </defs>
+    <rect width="${width}" height="${height}" rx="42" fill="url(#brand)"/>
+    ${coverData ? `<image href="${coverData}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity=".58"/>` : ""}
+    <rect width="${width}" height="${height}" rx="42" fill="url(#brand)" opacity="${coverData ? ".72" : ".94"}"/>
+    <rect width="${width}" height="${height}" fill="url(#glow)"/>
+    <circle cx="885" cy="125" r="138" fill="${accent}" opacity=".16"/>
+    <circle cx="934" cy="148" r="88" fill="#FFF8E8" opacity=".08"/>
+    <image href="${logoData}" x="74" y="55" width="128" height="128" preserveAspectRatio="xMidYMid meet"/>
+    <text x="226" y="115" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.6" fill="${foreground}">${safeBusiness}</text>
+    <text x="231" y="162" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="6" fill="${accent}">${safeProgram}</text>
+    <text x="78" y="248" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="900" letter-spacing="-1.2" fill="${foreground}">${safeReward}</text>
+    ${marks}
+    <text x="78" y="382" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="900" fill="${foreground}">${currentPoints} de ${pointsGoal} ${xmlEscape(settings.progressLabel)}</text>
+    <text x="704" y="382" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="${foreground}" opacity=".92">${safeStatus}</text>
+    <text x="975" y="70" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="3" fill="${foreground}" opacity=".88">CLIENTE</text>
+    <text x="975" y="112" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="900" fill="${foreground}">${safeCustomer}</text>
+    <text x="975" y="184" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" letter-spacing="2.5" fill="${accent}">powered by fidelizarei</text>
+  </svg>`;
+
+  const source = Buffer.from(svg);
+  const [x1, x2, x3] = await Promise.all([
+    sharp(source).resize(375, 144, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(750, 288, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(1125, 432, { fit: "cover" }).png().toBuffer(),
+  ]);
+  return { x1, x2, x3 };
+}
+
 function passAuthToken(serialNumber: string) {
   const secret = process.env.APPLE_PASS_AUTH_SECRET || process.env.CUSTOMER_SESSION_SECRET || process.env.APPLE_PASS_CERTIFICATE_PASSWORD;
   if (!secret) throw new Error("apple_wallet_not_configured");
@@ -233,16 +331,25 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const certificates = extractCertificatesFromP12();
   const brandLogo = await getFallbackLogo();
   const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
-  const stripImage = await fetchPngAsset(settings.coverUrl);
+  const coverImage = await fetchPngAsset(settings.coverUrl);
+  const stripImages = await buildAppleStripImages({
+    settings,
+    customerName,
+    currentPoints,
+    pointsGoal,
+    statusText,
+    merchantLogo,
+    coverImage,
+  });
 
   const pass = new PKPass({
     "pass.json": Buffer.from(JSON.stringify(passJson({
       serialNumber,
       organizationName: settings.businessName,
       description: settings.programDescription,
-      backgroundColor: hexToRgb(settings.primaryColor),
+      backgroundColor: hexToRgb(settings.backgroundColor),
       foregroundColor: hexToRgb(settings.textColor),
-      labelColor: hexToRgb(settings.secondaryColor),
+      labelColor: hexToRgb(settings.primaryColor),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
     }))),
@@ -252,27 +359,28 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "logo.png": merchantLogo,
     "logo@2x.png": merchantLogo,
     "logo@3x.png": merchantLogo,
-    ...(stripImage ? {
-      "strip.png": stripImage,
-      "strip@2x.png": stripImage,
-      "strip@3x.png": stripImage,
-    } : {}),
+    "thumbnail.png": merchantLogo,
+    "thumbnail@2x.png": merchantLogo,
+    "thumbnail@3x.png": merchantLogo,
+    "strip.png": stripImages.x1,
+    "strip@2x.png": stripImages.x2,
+    "strip@3x.png": stripImages.x3,
   }, certificates);
 
   pass.primaryFields.push({
     key: "offer",
-    label: "RECOMPENSA",
-    value: settings.rewardTitle,
+    label: "PROGRAMA DE FIDELIDADE",
+    value: shortField(settings.rewardTitle, 34),
   });
   pass.secondaryFields.push({
-    key: "progress_visual",
-    label: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
-    value: progressText(settings.pointTheme, currentPoints, pointsGoal),
+    key: "progress",
+    label: "SEU PROGRESSO",
+    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
   });
   pass.auxiliaryFields.push({
     key: "reward_status",
-    label: "STATUS",
-    value: statusText,
+    label: "FALTAM",
+    value: completed ? settings.completedMessage : `${remaining} ${settings.progressLabel}`,
   });
   pass.auxiliaryFields.push({
     key: "customer",
@@ -302,7 +410,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   pass.backFields.push({
     key: "progress",
     label: "Progresso",
-    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}. ${statusText}.`,
+    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
   });
   pass.backFields.push({
     key: "rewards",
