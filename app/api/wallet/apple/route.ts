@@ -1,25 +1,29 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { createAppleWalletPass } from "@/lib/apple-wallet";
+import { readCustomerSession } from "@/lib/customer-session";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const configured = Boolean(
-    process.env.APPLE_PASS_TYPE_IDENTIFIER &&
-    process.env.APPLE_TEAM_IDENTIFIER &&
-    process.env.APPLE_PASS_CERTIFICATE_BASE64,
-  );
+export async function GET(request: Request) {
+  try {
+    const session = readCustomerSession((await cookies()).get("fideliza_customer")?.value);
+    if (!session) {
+      return NextResponse.json({ ok: false, error: "identity_required" }, { status: 401 });
+    }
 
-  if (!configured) {
-    return NextResponse.json({
-      ok: false,
-      error: "apple_wallet_not_configured",
-      message: "Apple Wallet requires an Apple Developer Pass Type ID and signing certificate before .pkpass files can be generated.",
-    }, { status: 503 });
+    const pass = await createAppleWalletPass(session.customerId, new URL(request.url).origin);
+    return new NextResponse(new Uint8Array(pass.buffer), {
+      headers: {
+        "Content-Type": "application/vnd.apple.pkpass",
+        "Content-Disposition": `attachment; filename="${pass.filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "apple_wallet_unavailable";
+    console.error("apple_wallet_error", message);
+    const status = message === "apple_wallet_not_configured" ? 503 : message === "identity_required" ? 401 : 500;
+    return NextResponse.json({ ok: false, error: message }, { status });
   }
-
-  return NextResponse.json({
-    ok: false,
-    error: "apple_wallet_builder_pending",
-    message: "Apple credentials are configured, but the .pkpass signing builder still needs to be enabled.",
-  }, { status: 501 });
 }
