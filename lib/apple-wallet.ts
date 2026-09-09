@@ -165,22 +165,13 @@ function firstName(value: string) {
 
 async function buildAppleStripImages(input: {
   settings: WalletCardSettings;
-  customerName: string;
-  currentPoints: number;
-  pointsGoal: number;
-  statusText: string;
-  merchantLogo: Buffer;
   coverImage: Buffer | null;
 }) {
-  const { settings, customerName, currentPoints, pointsGoal, statusText, merchantLogo, coverImage } = input;
+  const { settings, coverImage } = input;
   const width = 1125;
   const height = 432;
-  const safeBusiness = xmlEscape(shortField(settings.businessName.toLowerCase(), 28));
-  const safeProgram = xmlEscape(shortField(settings.programDescription || "Programa de Fidelidade", 34).toUpperCase());
-  const logoData = `data:image/png;base64,${merchantLogo.toString("base64")}`;
   const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
   const cardGreen = settings.primaryColor || "#06420D";
-  const foreground = readableOn(cardGreen);
   const accent = settings.secondaryColor || "#14E28B";
 
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
@@ -194,21 +185,11 @@ async function buildAppleStripImages(input: {
         <stop offset="0" stop-color="${accent}" stop-opacity=".32"/>
         <stop offset="1" stop-color="${accent}" stop-opacity="0"/>
       </radialGradient>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#071C0F" flood-opacity=".28"/>
-      </filter>
     </defs>
     <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
-    <rect x="0" y="0" width="${width}" height="132" fill="${cardGreen}" opacity=".98"/>
-    <image href="${logoData}" x="54" y="22" width="88" height="88" preserveAspectRatio="xMidYMid meet"/>
-    <text x="166" y="81" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="850" letter-spacing="-1.2" fill="${accent}">${safeBusiness}</text>
-    <text x="1030" y="52" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="850" letter-spacing="3" fill="${accent}">${xmlEscape(settings.progressLabel.toUpperCase())}</text>
-    <text x="1030" y="100" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="400" fill="${foreground}">${currentPoints}/${pointsGoal}</text>
-    ${coverData ? `<image href="${coverData}" x="0" y="132" width="${width}" height="300" preserveAspectRatio="xMidYMid slice" opacity=".52"/>` : ""}
-    <rect x="0" y="132" width="${width}" height="300" fill="#03150B" opacity="${coverData ? ".42" : ".72"}"/>
-    <rect x="0" y="132" width="${width}" height="300" fill="url(#glow)" opacity=".85"/>
-    <text x="56" y="330" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="900" letter-spacing="-1.6" fill="${foreground}">${safeBusiness}</text>
-    <text x="58" y="382" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="850" letter-spacing="5" fill="${accent}">${safeProgram}</text>
+    ${coverData ? `<image href="${coverData}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>` : ""}
+    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)" opacity="${coverData ? ".24" : ".95"}"/>
+    <rect width="${width}" height="${height}" fill="url(#glow)" opacity="${coverData ? ".38" : ".95"}"/>
   </svg>`;
 
   const source = Buffer.from(svg);
@@ -327,11 +308,6 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const coverImage = await fetchPngAsset(settings.coverUrl);
   const stripImages = await buildAppleStripImages({
     settings,
-    customerName: displayName,
-    currentPoints,
-    pointsGoal,
-    statusText,
-    merchantLogo,
     coverImage,
   });
 
@@ -352,38 +328,20 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "logo.png": merchantLogo,
     "logo@2x.png": merchantLogo,
     "logo@3x.png": merchantLogo,
-    "thumbnail.png": merchantLogo,
-    "thumbnail@2x.png": merchantLogo,
-    "thumbnail@3x.png": merchantLogo,
     "strip.png": stripImages.x1,
     "strip@2x.png": stripImages.x2,
     "strip@3x.png": stripImages.x3,
   }, certificates);
 
-  pass.primaryFields.push({
-    key: "offer",
-    label: "PROGRAMA DE FIDELIDADE",
-    value: shortField(settings.rewardTitle, 34),
-  });
   pass.secondaryFields.push({
-    key: "progress_visual",
-    label: "SEU PROGRESSO",
-    value: progressText(settings.pointTheme, currentPoints, pointsGoal),
-  });
-  pass.secondaryFields.push({
-    key: "progress_count",
-    label: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
-    value: completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`,
-  });
-  pass.auxiliaryFields.push({
     key: "customer",
     label: "CLIENTE",
     value: shortField(displayName, 18),
   });
-  pass.auxiliaryFields.push({
-    key: "member_since",
-    label: "MEMBRO DESDE",
-    value: formatMemberSince(new Date(context.customer_created_at)),
+  pass.secondaryFields.push({
+    key: "status",
+    label: "STATUS",
+    value: completed ? "Recompensa disponível" : "Ativo",
   });
   pass.headerFields.push({
     key: "stamps",

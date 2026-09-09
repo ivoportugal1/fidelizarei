@@ -70,6 +70,21 @@
 .apple-pass .pass-body { color:inherit; }
 .apple-pass .pass-progress-row span { color:color-mix(in srgb, currentColor 72%, transparent); }
 .apple-pass .pass-footer-grid small { color:color-mix(in srgb, currentColor 66%, transparent); }
+.apple-pass-simple { background:#0a4214; color:#fff; border-color:#143f24; }
+.apple-simple-head { display:grid; grid-template-columns:1fr auto; align-items:center; gap:16px; padding:20px 24px; background:color-mix(in srgb, currentColor 0%, transparent); }
+.apple-simple-brand { min-width:0; display:flex; align-items:center; gap:13px; }
+.apple-simple-brand span { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; overflow:hidden; background:#f8f3e8; color:#173d20; font:800 14px var(--mono); flex:none; }
+.apple-simple-brand img { width:100%; height:100%; object-fit:contain; }
+.apple-simple-brand strong { min-width:0; font-size:25px; letter-spacing:-.8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--mint); }
+.apple-simple-count { text-align:right; line-height:1; }
+.apple-simple-count small { display:block; color:var(--mint); font:800 11px var(--mono); letter-spacing:1.3px; margin-bottom:4px; }
+.apple-simple-count b { font-size:32px; font-weight:500; color:#fff; }
+.apple-simple-image { height:170px; position:relative; overflow:hidden; background:#072510; }
+.apple-simple-image img { width:100%; height:100%; object-fit:cover; display:block; opacity:.82; }
+.apple-simple-image:after { content:""; position:absolute; inset:0; background:linear-gradient(180deg, #00000010, #00000024); pointer-events:none; }
+.apple-simple-fields { display:grid; grid-template-columns:1fr 1fr; gap:24px; padding:19px 24px 28px; }
+.apple-simple-fields small { display:block; color:var(--mint); font:800 11px var(--mono); letter-spacing:1.3px; margin-bottom:7px; }
+.apple-simple-fields b { font-size:25px; font-weight:400; color:#fff; }
 
 @media (max-width:600px) {
   .platform-admin { overflow-x:hidden; }

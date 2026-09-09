@@ -379,14 +379,18 @@ function PointIcon({ theme }: { theme: PointTheme }) {
 
 function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
   const completed = points >= settings.pointsGoal;
-  const remaining = Math.max(settings.pointsGoal - points, 0);
-  return <div className="apple-pass" style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}>
-    <div className="pass-hero" style={{ backgroundColor: settings.primaryColor, "--accent-color": settings.secondaryColor } as CSSProperties}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="pass-hero-shade" /><div className="merchant-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><strong>{settings.businessName}</strong><small>{settings.programDescription}</small></div>
-    <div className="pass-body">
-      <h3>{settings.rewardTitle}</h3>
-      <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} />
-      <div className="pass-progress-row"><b>{points} de {settings.pointsGoal} {settings.progressLabel}</b><span>{completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`}</span></div>
-      <div className="pass-footer-grid"><div><small>CLIENTE</small><b>{previewCustomer.name}</b></div><div><small>MEMBRO DESDE</small><b>{previewCustomer.memberSince}</b></div><PoweredBy /></div>
+  return <div className="apple-pass apple-pass-simple" style={{ backgroundColor: settings.primaryColor, color: "#fff" }}>
+    <div className="apple-simple-head">
+      <div className="apple-simple-brand">
+        <span>{settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" /> : initials(settings.businessName)}</span>
+        <strong>{settings.businessName}</strong>
+      </div>
+      <div className="apple-simple-count"><small>{settings.progressLabel.toUpperCase()}</small><b>{points}/{settings.pointsGoal}</b></div>
+    </div>
+    <div className="apple-simple-image" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}</div>
+    <div className="apple-simple-fields">
+      <div><small>NOME</small><b>{previewCustomer.name.split(" ")[0]}</b></div>
+      <div><small>STATUS</small><b>{completed ? "Disponível" : "Ativo"}</b></div>
     </div>
   </div>;
 }
