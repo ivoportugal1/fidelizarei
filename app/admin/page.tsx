@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import type { CSSProperties } from "react";
 import { getCurrentUser, isPlatformAdmin } from "@/lib/auth";
-import { getPlatformAdminData, type PlatformCompany } from "@/lib/platform-admin-data";
+import { getPlatformAdminData, type PlatformAdminData, type PlatformCompany } from "@/lib/platform-admin-data";
 import { AdminLogoutButton } from "./logout-button";
 
 const planLabel = (interval: "monthly" | "yearly") => interval === "yearly" ? "Anual" : "Mensal";
@@ -41,6 +42,57 @@ function shortId(value: string | null) {
   if (!value) return "—";
   if (value.length <= 16) return value;
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
+}
+
+function BarChart({ title, description, values, valueLabel }: {
+  title: string;
+  description: string;
+  values: Array<{ label: string; value: number; helper?: string }>;
+  valueLabel: (value: number) => string;
+}) {
+  const max = Math.max(...values.map((item) => item.value), 1);
+  return (
+    <article className="admin-chart-card">
+      <div>
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+      <div className="admin-bars" style={{ "--bar-count": values.length } as CSSProperties}>
+        {values.map((item) => (
+          <div key={item.label} className="admin-bar-item">
+            <span style={{ height: `${Math.max(8, (item.value / max) * 100)}%` }} title={valueLabel(item.value)} />
+            <b>{valueLabel(item.value)}</b>
+            <small>{item.label}</small>
+            {item.helper && <em>{item.helper}</em>}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function StatusChart({ data }: { data: PlatformAdminData }) {
+  const total = Math.max(data.totals.companies, 1);
+  return (
+    <article className="admin-chart-card admin-status-chart">
+      <div>
+        <h2>Status das empresas</h2>
+        <p>Distribuição atual de pagamento/acesso.</p>
+      </div>
+      <div className="status-rings">
+        {data.charts.statusDistribution.map((item) => (
+          <div key={item.status} className={`status-ring ${item.status}`} style={{ "--percent": `${(item.value / total) * 100}%` } as CSSProperties}>
+            <b>{item.value}</b>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
 }
 
 function CompanyRow({ company }: { company: PlatformCompany }) {
@@ -92,8 +144,24 @@ export default async function PlatformAdminPage() {
         <article><span>Empresas</span><b>{data.totals.companies}</b><small>Total cadastrado</small></article>
         <article><span>Pagando</span><b>{data.totals.active}</b><small>Status ativo</small></article>
         <article><span>Pendentes</span><b>{data.totals.pending}</b><small>Aguardando pagamento</small></article>
-        <article><span>Teste</span><b>{data.totals.trialing}</b><small>Cupom/período grátis</small></article>
-        <article><span>Planos</span><b>{data.totals.monthly}/{data.totals.yearly}</b><small>Mensal / anual</small></article>
+        <article><span>MRR estimado</span><b>{formatMoney(data.totals.estimatedMrr)}</b><small>Receita mensal recorrente</small></article>
+        <article><span>Lucro estimado</span><b>{formatMoney(data.totals.estimatedMonthlyProfit)}</b><small>{data.totals.monthlyCosts ? `Custos: ${formatMoney(data.totals.monthlyCosts)}` : "Sem custos cadastrados"}</small></article>
+      </section>
+
+      <section className="admin-charts">
+        <BarChart
+          title="Receita mensal"
+          description="Estimativa com empresas ativas: mensal cheio + anual diluído por 12."
+          values={data.charts.revenueByMonth.map((item) => ({ label: item.label, value: item.revenue, helper: `${item.activeCompanies} ativas` }))}
+          valueLabel={formatMoney}
+        />
+        <BarChart
+          title="Novas empresas"
+          description="Cadastros recebidos nos últimos 6 meses."
+          values={data.charts.companiesByMonth.map((item) => ({ label: item.label, value: item.companies }))}
+          valueLabel={(value) => value.toLocaleString("pt-BR")}
+        />
+        <StatusChart data={data} />
       </section>
 
       <section className="admin-table-card">

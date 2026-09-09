@@ -29,6 +29,15 @@ export type PlatformAdminData = {
     pastDue: number;
     monthly: number;
     yearly: number;
+    estimatedMrr: number;
+    estimatedArr: number;
+    estimatedMonthlyProfit: number;
+    monthlyCosts: number;
+  };
+  charts: {
+    revenueByMonth: Array<{ label: string; revenue: number; activeCompanies: number }>;
+    companiesByMonth: Array<{ label: string; companies: number }>;
+    statusDistribution: Array<{ label: string; value: number; status: string }>;
   };
   companies: PlatformCompany[];
 };
@@ -52,6 +61,30 @@ type PlatformCompanyRow = {
   active_codes_count: string;
   redeemed_codes_count: string;
 };
+
+function planAmount(interval: "monthly" | "yearly") {
+  const envName = interval === "yearly" ? "MERCADOPAGO_PLAN_YEARLY_AMOUNT" : "MERCADOPAGO_PLAN_MONTHLY_AMOUNT";
+  const fallback = interval === "yearly" ? 600 : 60;
+  const amount = Number(process.env[envName] || fallback);
+  return Number.isFinite(amount) && amount > 0 ? amount : fallback;
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key: string) {
+  const [year, month] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", { month: "short" }).format(new Date(year, month - 1, 1)).replace(".", "");
+}
+
+function recentMonthKeys(count: number) {
+  const now = new Date();
+  return Array.from({ length: count }).map((_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (count - 1 - index), 1);
+    return monthKey(date);
+  });
+}
 
 export async function getPlatformAdminData(): Promise<PlatformAdminData> {
   const result = await query<PlatformCompanyRow>(`
@@ -107,6 +140,35 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
     redeemedCodesCount: Number(row.redeemed_codes_count),
   }));
 
+  const monthlyAmount = planAmount("monthly");
+  const yearlyAmount = planAmount("yearly");
+  const monthlyEquivalentFromYearly = yearlyAmount / 12;
+  const monthlyCosts = Number(process.env.PLATFORM_MONTHLY_COSTS || 0);
+  const safeMonthlyCosts = Number.isFinite(monthlyCosts) && monthlyCosts > 0 ? monthlyCosts : 0;
+  const activeCompanies = companies.filter((company) => company.billingStatus === "active");
+  const estimatedMrr = activeCompanies.reduce((total, company) => total + (company.billingInterval === "yearly" ? monthlyEquivalentFromYearly : monthlyAmount), 0);
+  const estimatedArr = activeCompanies.reduce((total, company) => total + (company.billingInterval === "yearly" ? yearlyAmount : monthlyAmount * 12), 0);
+  const keys = recentMonthKeys(6);
+  const companiesByMonth = keys.map((key) => ({
+    label: monthLabel(key),
+    companies: companies.filter((company) => monthKey(new Date(company.createdAt)) === key).length,
+  }));
+  const revenueByMonth = keys.map((key) => {
+    const monthStart = new Date(`${key}-01T00:00:00.000Z`).getTime();
+    const eligible = activeCompanies.filter((company) => new Date(company.createdAt).getTime() <= monthStart);
+    return {
+      label: monthLabel(key),
+      activeCompanies: eligible.length,
+      revenue: eligible.reduce((total, company) => total + (company.billingInterval === "yearly" ? monthlyEquivalentFromYearly : monthlyAmount), 0),
+    };
+  });
+  const statusDistribution = [
+    { label: "Ativo", value: companies.filter((company) => company.billingStatus === "active").length, status: "active" },
+    { label: "Pendente", value: companies.filter((company) => company.billingStatus === "pending").length, status: "pending" },
+    { label: "Teste", value: companies.filter((company) => company.billingStatus === "trialing").length, status: "trialing" },
+    { label: "Bloqueado", value: companies.filter((company) => ["past_due", "canceled", "expired"].includes(company.billingStatus)).length, status: "blocked" },
+  ];
+
   return {
     companies,
     totals: {
@@ -117,6 +179,15 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
       pastDue: companies.filter((company) => company.billingStatus === "past_due").length,
       monthly: companies.filter((company) => company.billingInterval === "monthly").length,
       yearly: companies.filter((company) => company.billingInterval === "yearly").length,
+      estimatedMrr,
+      estimatedArr,
+      estimatedMonthlyProfit: estimatedMrr - safeMonthlyCosts,
+      monthlyCosts: safeMonthlyCosts,
+    },
+    charts: {
+      revenueByMonth,
+      companiesByMonth,
+      statusDistribution,
     },
   };
 }
