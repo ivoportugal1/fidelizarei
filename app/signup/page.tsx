@@ -7,6 +7,7 @@ import { PlanOptions } from "@/app/billing/plan-options";
 export default function SignupPage() {
   const [businessName, setBusinessName] = useState("");
   const [ownerName, setOwnerName] = useState("");
+  const [taxId, setTaxId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
@@ -21,12 +22,12 @@ export default function SignupPage() {
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ businessName, ownerName, email, password, billingInterval, couponCode }),
+      body: JSON.stringify({ businessName, ownerName, taxId, email, password, billingInterval, couponCode }),
     });
     const body = await response.json();
     setLoading(false);
     if (!response.ok || !body.ok) {
-      setError(body.error === "email_already_exists" ? "Esse email já tem uma conta." : body.error === "invalid_coupon" ? "Cupom inválido ou expirado." : "Preencha os dados corretamente. A senha precisa ter pelo menos 8 caracteres.");
+      setError(body.error === "email_already_exists" ? "Esse email já tem uma conta." : body.error === "invalid_coupon" ? "Cupom inválido ou expirado." : "Preencha todos os campos. CPF/CNPJ precisa ser válido e a senha deve ter pelo menos 8 caracteres.");
       return;
     }
     window.location.href = body.nextUrl || "/billing";
@@ -40,8 +41,9 @@ export default function SignupPage() {
         <h1>Criar conta</h1>
         <p className="muted">Escolha mensal ou anual. Se recebeu um cupom da Fidelizarei, aplique antes de criar a conta.</p>
         <PlanOptions selectedPlan={billingInterval} onSelect={setBillingInterval} compact />
-        <label>Cupom de desconto <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Ex: 30DIASGRATIS" autoComplete="off" /></label>
+        <label>Cupom de desconto <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Digite seu cupom, se tiver" autoComplete="off" /></label>
         <label>Nome da empresa<input value={businessName} onChange={(event) => setBusinessName(event.target.value)} autoComplete="organization" /></label>
+        <label>CPF ou CNPJ<input value={taxId} onChange={(event) => setTaxId(event.target.value)} inputMode="numeric" placeholder="Somente números" autoComplete="off" required /></label>
         <label>Seu nome<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} autoComplete="name" /></label>
         <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
         <label>Senha<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" /></label>

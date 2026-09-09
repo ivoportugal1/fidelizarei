@@ -29,6 +29,7 @@ export async function POST(request: Request) {
   const body = await request.json() as {
     businessName?: string;
     ownerName?: string;
+    taxId?: string;
     email?: string;
     password?: string;
     billingInterval?: "monthly" | "yearly";
@@ -37,13 +38,14 @@ export async function POST(request: Request) {
 
   const businessName = body.businessName?.trim();
   const ownerName = body.ownerName?.trim();
+  const taxId = body.taxId?.replace(/\D/g, "") || "";
   const email = body.email?.trim().toLowerCase();
   const password = body.password ?? "";
   const billingInterval = body.billingInterval === "yearly" ? "yearly" : "monthly";
   const couponCode = body.couponCode?.trim() || "";
   const hasTrialCoupon = isTrialCouponValid(couponCode);
 
-  if (!businessName || !ownerName || !email || password.length < 8) {
+  if (!businessName || !ownerName || !email || password.length < 8 || ![11, 14].includes(taxId.length)) {
     return NextResponse.json({ ok: false, error: "invalid_signup" }, { status: 400 });
   }
   if (couponCode && !hasTrialCoupon) {
@@ -58,16 +60,16 @@ export async function POST(request: Request) {
   const slug = await uniqueSlug(slugify(businessName));
   const org = await query<{ id: string }>(`
     insert into organizations (
-      name, slug, plan, subscription_status, trial_started_at, trial_ends_at,
+      name, slug, tax_id, plan, subscription_status, trial_started_at, trial_ends_at,
       subscription_billing_interval, subscription_coupon_code
     )
     values (
-      $1, $2, 'starter', $3,
-      case when $3 = 'trialing' then now() else null end,
-      case when $3 = 'trialing' then now() + interval '30 days' else null end,
-      $4, $5
+      $1, $2, $3, 'starter', $4,
+      case when $4 = 'trialing' then now() else null end,
+      case when $4 = 'trialing' then now() + interval '30 days' else null end,
+      $5, $6
     )
-    returning id`, [businessName, slug, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null]);
+    returning id`, [businessName, slug, taxId, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null]);
 
   const user = await query<{ id: string }>(`
     insert into app_users (email, password_hash, full_name)

@@ -60,7 +60,7 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
         <PlanOptions selectedPlan={selectedPlan} onSelect={setSelectedPlan} />
         {!billing.accessAllowed && (
           <div className="coupon-box">
-            <label>Cupom de desconto<input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Ex: 30DIASGRATIS" autoComplete="off" /></label>
+            <label>Cupom de desconto<input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Digite seu cupom, se tiver" autoComplete="off" /></label>
             <button className="button button-light" disabled={couponLoading || !couponCode.trim()} onClick={applyCoupon}>{couponLoading ? "Aplicando..." : "Aplicar cupom"}</button>
           </div>
         )}
