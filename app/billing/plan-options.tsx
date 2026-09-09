@@ -17,8 +17,8 @@ export function PlanOptions({ selectedPlan, onSelect, compact = false }: {
       <button type="button" className={selectedPlan === "yearly" ? "billing-plan annual active" : "billing-plan annual"} onClick={() => onSelect("yearly")}>
         <em>Desconto Fidelizarei</em>
         <span>Anual</span>
-        <b><strong>R$ 60</strong> × 10</b>
-        <small>Use 12 meses e pague só 10. Você economiza R$ 120 no ano.</small>
+        <b>R$ 600</b>
+        <small><strong>Equivale a R$ 60 × 10.</strong> Use 12 meses e pague só 10. Você economiza R$ 120 no ano.</small>
       </button>
     </div>
   );
