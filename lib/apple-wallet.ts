@@ -128,6 +128,12 @@ function formatMemberSince(date: Date) {
     .replace(".", "");
 }
 
+function formatValidUntil(date: Date) {
+  const valid = new Date(date);
+  valid.setFullYear(valid.getFullYear() + 1);
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(valid);
+}
+
 function progressText(theme: string, current: number, total: number) {
   const icons = progressIcons[theme] ?? progressIcons.universal;
   const limit = Math.max(1, Math.min(total, 20));
@@ -158,6 +164,10 @@ function shortField(value: string, max = 44) {
   return clean.length > max ? `${clean.slice(0, max - 1).trim()}…` : clean;
 }
 
+function firstName(value: string) {
+  return value.trim().split(/\s+/)[0] || value;
+}
+
 async function buildAppleStripImages(input: {
   settings: WalletCardSettings;
   customerName: string;
@@ -170,31 +180,21 @@ async function buildAppleStripImages(input: {
   const { settings, customerName, currentPoints, pointsGoal, statusText, merchantLogo, coverImage } = input;
   const width = 1125;
   const height = 432;
-  const safeBusiness = xmlEscape(shortField(settings.businessName, 28));
+  const safeBusiness = xmlEscape(shortField(settings.businessName.toLowerCase(), 28));
   const safeProgram = xmlEscape(shortField(settings.programDescription || "Programa de Fidelidade", 34).toUpperCase());
   const safeReward = xmlEscape(shortField(settings.rewardTitle, 42));
-  const safeCustomer = xmlEscape(shortField(customerName, 28));
-  const safeStatus = xmlEscape(shortField(statusText, 36));
   const logoData = `data:image/png;base64,${merchantLogo.toString("base64")}`;
   const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
-  const foreground = readableOn(settings.primaryColor);
-  const accent = settings.secondaryColor;
-  const cup = settings.pointTheme === "cafeteria" ? "☕" : "●";
-  const marks = Array.from({ length: Math.max(1, Math.min(pointsGoal, 10)) }).map((_, index) => {
-    const filled = index < currentPoints;
-    const x = 78 + index * 70;
-    return `<g transform="translate(${x} 310)">
-      <circle cx="0" cy="0" r="25" fill="${filled ? accent : "rgba(255,248,232,.82)"}" stroke="${foreground}" stroke-opacity=".58" stroke-width="2"/>
-      <text x="0" y="8" text-anchor="middle" font-size="24" font-weight="800" fill="${filled ? "#173D20" : settings.primaryColor}">${settings.pointTheme === "cafeteria" ? cup : index + 1}</text>
-    </g>`;
-  }).join("");
+  const cardGreen = settings.primaryColor || "#06420D";
+  const foreground = readableOn(cardGreen);
+  const accent = settings.secondaryColor || "#14E28B";
 
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="${settings.primaryColor}"/>
-        <stop offset=".62" stop-color="#173D20"/>
-        <stop offset="1" stop-color="#071C0F"/>
+        <stop offset="0" stop-color="${cardGreen}"/>
+        <stop offset=".48" stop-color="#073B13"/>
+        <stop offset="1" stop-color="#031B0A"/>
       </linearGradient>
       <radialGradient id="glow" cx=".74" cy=".2" r=".7">
         <stop offset="0" stop-color="${accent}" stop-opacity=".32"/>
@@ -204,22 +204,19 @@ async function buildAppleStripImages(input: {
         <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#071C0F" flood-opacity=".28"/>
       </filter>
     </defs>
-    <rect width="${width}" height="${height}" rx="42" fill="url(#brand)"/>
-    ${coverData ? `<image href="${coverData}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity=".58"/>` : ""}
-    <rect width="${width}" height="${height}" rx="42" fill="url(#brand)" opacity="${coverData ? ".72" : ".94"}"/>
-    <rect width="${width}" height="${height}" fill="url(#glow)"/>
-    <circle cx="885" cy="125" r="138" fill="${accent}" opacity=".16"/>
-    <circle cx="934" cy="148" r="88" fill="#FFF8E8" opacity=".08"/>
-    <image href="${logoData}" x="74" y="55" width="128" height="128" preserveAspectRatio="xMidYMid meet"/>
-    <text x="226" y="115" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800" letter-spacing="-1.6" fill="${foreground}">${safeBusiness}</text>
-    <text x="231" y="162" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="6" fill="${accent}">${safeProgram}</text>
-    <text x="78" y="248" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="900" letter-spacing="-1.2" fill="${foreground}">${safeReward}</text>
-    ${marks}
-    <text x="78" y="382" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="900" fill="${foreground}">${currentPoints} de ${pointsGoal} ${xmlEscape(settings.progressLabel)}</text>
-    <text x="704" y="382" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="700" fill="${foreground}" opacity=".92">${safeStatus}</text>
-    <text x="975" y="70" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="3" fill="${foreground}" opacity=".88">CLIENTE</text>
-    <text x="975" y="112" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="900" fill="${foreground}">${safeCustomer}</text>
-    <text x="975" y="184" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" letter-spacing="2.5" fill="${accent}">powered by fidelizarei</text>
+    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
+    <rect x="0" y="0" width="${width}" height="132" fill="${cardGreen}" opacity=".98"/>
+    <image href="${logoData}" x="54" y="22" width="88" height="88" preserveAspectRatio="xMidYMid meet"/>
+    <text x="166" y="81" font-family="Arial, Helvetica, sans-serif" font-size="45" font-weight="850" letter-spacing="-1.2" fill="${accent}">${safeBusiness}</text>
+    <text x="1030" y="52" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="850" letter-spacing="3" fill="${accent}">${xmlEscape(settings.progressLabel.toUpperCase())}</text>
+    <text x="1030" y="100" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="400" fill="${foreground}">${currentPoints}/${pointsGoal}</text>
+    ${coverData ? `<image href="${coverData}" x="0" y="132" width="${width}" height="300" preserveAspectRatio="xMidYMid slice" opacity=".52"/>` : ""}
+    <rect x="0" y="132" width="${width}" height="300" fill="#03150B" opacity="${coverData ? ".54" : ".78"}"/>
+    <rect x="0" y="132" width="${width}" height="300" fill="url(#glow)" opacity=".85"/>
+    <circle cx="562" cy="278" r="130" fill="none" stroke="${foreground}" stroke-opacity=".38" stroke-width="14"/>
+    <image href="${logoData}" x="420" y="136" width="284" height="284" preserveAspectRatio="xMidYMid meet" opacity=".62"/>
+    <text x="56" y="395" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="850" letter-spacing="4" fill="${accent}">${safeProgram}</text>
+    <text x="1068" y="395" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" fill="${foreground}" opacity=".9">${safeReward}</text>
   </svg>`;
 
   const source = Buffer.from(svg);
@@ -322,6 +319,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const serialNumber = `apple-${context.customer_id}-${context.program_id}`;
   if (expectedSerialNumber && expectedSerialNumber !== serialNumber) throw new Error("pass_not_found");
   const customerName = context.full_name || context.phone_e164 || "Cliente";
+  const displayName = firstName(customerName);
   const currentPoints = Number(context.points);
   const pointsGoal = Number(settings.pointsGoal || context.points_to_reward);
   const remaining = Math.max(pointsGoal - currentPoints, 0);
@@ -334,7 +332,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const coverImage = await fetchPngAsset(settings.coverUrl);
   const stripImages = await buildAppleStripImages({
     settings,
-    customerName,
+    customerName: displayName,
     currentPoints,
     pointsGoal,
     statusText,
@@ -347,9 +345,9 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       serialNumber,
       organizationName: settings.businessName,
       description: settings.programDescription,
-      backgroundColor: hexToRgb(settings.backgroundColor),
-      foregroundColor: hexToRgb(settings.textColor),
-      labelColor: hexToRgb(settings.primaryColor),
+      backgroundColor: hexToRgb(settings.primaryColor),
+      foregroundColor: hexToRgb(readableOn(settings.primaryColor)),
+      labelColor: hexToRgb(settings.secondaryColor),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
     }))),
@@ -367,35 +365,52 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "strip@3x.png": stripImages.x3,
   }, certificates);
 
+  pass.setBarcodes({
+    format: "PKBarcodeFormatQR",
+    message: serialNumber,
+    messageEncoding: "iso-8859-1",
+    altText: `${settings.businessName} · ${displayName}`,
+  });
+
   pass.primaryFields.push({
-    key: "offer",
-    label: "PROGRAMA DE FIDELIDADE",
-    value: shortField(settings.rewardTitle, 34),
+    key: "name",
+    label: "NOME",
+    value: shortField(displayName, 18),
   });
   pass.secondaryFields.push({
-    key: "progress",
-    label: "SEU PROGRESSO",
-    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}`,
+    key: "status_field",
+    label: "STATUS",
+    value: completed ? "Disponível" : "Ativo",
+  });
+  pass.secondaryFields.push({
+    key: "valid_until",
+    label: "VÁLIDO ATÉ",
+    value: formatValidUntil(new Date(context.customer_created_at)),
   });
   pass.auxiliaryFields.push({
-    key: "reward_status",
-    label: "FALTAM",
-    value: completed ? settings.completedMessage : `${remaining} ${settings.progressLabel}`,
+    key: "reward",
+    label: "RECOMPENSA",
+    value: shortField(settings.rewardText, 26),
   });
   pass.auxiliaryFields.push({
-    key: "customer",
-    label: "CLIENTE",
-    value: customerName,
-  });
-  pass.auxiliaryFields.push({
-    key: "member_since",
-    label: "MEMBRO DESDE",
-    value: formatMemberSince(new Date(context.customer_created_at)),
+    key: "progress_native",
+    label: "PROGRESSO",
+    value: `${currentPoints}/${pointsGoal} ${settings.progressLabel}`,
   });
   pass.headerFields.push({
-    key: "status",
+    key: "stamps",
     label: settings.progressLabel.toUpperCase(),
     value: `${currentPoints}/${pointsGoal}`,
+  });
+  pass.backFields.push({
+    key: "customer",
+    label: "Cliente",
+    value: customerName,
+  });
+  pass.backFields.push({
+    key: "member_since",
+    label: "Membro desde",
+    value: formatMemberSince(new Date(context.customer_created_at)),
   });
   pass.backFields.push({
     key: "program",
