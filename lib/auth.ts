@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { query } from "./database";
 
 const COOKIE_NAME = "fideliza_admin";
+const DEFAULT_PLATFORM_ADMIN_EMAIL = "admin@fidelizarei.com";
 
 type UserRow = {
   id: string;
@@ -70,4 +71,9 @@ export async function setAdminCookie(token: string) {
 export async function clearAdminCookie() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
+}
+
+export function isPlatformAdmin(email?: string | null) {
+  const configured = (process.env.PLATFORM_ADMIN_EMAIL || DEFAULT_PLATFORM_ADMIN_EMAIL).trim().toLowerCase();
+  return !!email && email.trim().toLowerCase() === configured;
 }
