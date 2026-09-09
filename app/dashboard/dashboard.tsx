@@ -11,6 +11,13 @@ type PointTheme = WalletSettings["pointTheme"];
 const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem atividade";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CL";
+const planLabel = (interval: "monthly" | "yearly") => interval === "yearly" ? "Anual" : "Mensal";
+
+function daysLeft(value: string | null) {
+  if (!value) return null;
+  const ms = new Date(value).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / 86400000));
+}
 
 const pointThemes: Array<{ value: PointTheme; label: string }> = [
   { value: "cafeteria", label: "Cafeteria" },
@@ -92,7 +99,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         <a className="brand" href="/">fideliza<span>.</span></a>
         <div className="company-switcher">
           <div className="company-logo">{initialData.organization.name[0]}</div>
-          <div><strong>{initialData.organization.name}</strong><small>Plano {initialData.organization.plan}</small></div>
+          <div><strong>{initialData.organization.name}</strong><small>Plano {planLabel(initialData.organization.billingInterval)}</small></div>
           <span>⌄</span>
         </div>
         <nav>
@@ -109,6 +116,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
       </aside>
 
       <section className="workspace">
+        <TrialBanner data={initialData} />
         <header className="topbar">
           <div><p>{new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase()}</p><h1>{active}</h1></div>
           <div className="top-actions"><button className="icon-button">⌕</button><button className="icon-button notification">♧</button><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
@@ -136,6 +144,20 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
       )}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
+  );
+}
+
+function TrialBanner({ data }: { data: DashboardData }) {
+  if (data.organization.billingStatus !== "trialing") return null;
+  const remaining = daysLeft(data.organization.trialEndsAt);
+  return (
+    <div className="trial-banner">
+      <div>
+        <strong>Teste grátis ativo</strong>
+        <span>{remaining === null ? "Você está no período grátis." : `Faltam ${remaining} ${remaining === 1 ? "dia" : "dias"} para acabar o teste grátis.`}</span>
+      </div>
+      <a className="button button-light" href="/billing">Ver plano {planLabel(data.organization.billingInterval)}</a>
+    </div>
   );
 }
 

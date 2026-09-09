@@ -30,12 +30,14 @@ export async function POST(request: Request) {
     ownerName?: string;
     email?: string;
     password?: string;
+    billingInterval?: "monthly" | "yearly";
   };
 
   const businessName = body.businessName?.trim();
   const ownerName = body.ownerName?.trim();
   const email = body.email?.trim().toLowerCase();
   const password = body.password ?? "";
+  const billingInterval = body.billingInterval === "yearly" ? "yearly" : "monthly";
 
   if (!businessName || !ownerName || !email || password.length < 8) {
     return NextResponse.json({ ok: false, error: "invalid_signup" }, { status: 400 });
@@ -49,8 +51,8 @@ export async function POST(request: Request) {
   const slug = await uniqueSlug(slugify(businessName));
   const org = await query<{ id: string }>(`
     insert into organizations (name, slug, plan, subscription_status, trial_started_at, trial_ends_at, subscription_billing_interval)
-    values ($1, $2, 'starter', 'trialing', now(), now() + interval '30 days', 'monthly')
-    returning id`, [businessName, slug]);
+    values ($1, $2, 'starter', 'trialing', now(), now() + interval '30 days', $3)
+    returning id`, [businessName, slug, billingInterval]);
 
   const user = await query<{ id: string }>(`
     insert into app_users (email, password_hash, full_name)

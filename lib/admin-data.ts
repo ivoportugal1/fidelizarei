@@ -3,7 +3,15 @@ import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings }
 
 export type DashboardData = {
   user: { name: string; email: string };
-  organization: { id: string; name: string; plan: string };
+  organization: {
+    id: string;
+    name: string;
+    plan: string;
+    billingStatus: string;
+    billingInterval: "monthly" | "yearly";
+    trialEndsAt: string | null;
+    currentPeriodEnd: string | null;
+  };
   program: {
     id: string;
     name: string;
@@ -46,11 +54,17 @@ type ContextRow = {
   points_to_reward: number;
   points_per_code: number;
   pass_background_color: string;
+  subscription_status: string | null;
+  subscription_billing_interval: "monthly" | "yearly" | null;
+  trial_ends_at: Date | null;
+  subscription_current_period_end: Date | null;
 };
 
 export async function getDashboardData(userId: string, userEmail: string, userName: string | null): Promise<DashboardData> {
   const context = await query<ContextRow>(`
     select o.id as organization_id, o.name as organization_name, o.plan,
+           o.subscription_status, o.subscription_billing_interval, o.trial_ends_at,
+           o.subscription_current_period_end,
            p.id as program_id, p.name as program_name, p.reward_name, p.points_to_reward,
            p.points_per_code, p.pass_background_color
     from organization_members m
@@ -97,7 +111,15 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
 
   return {
     user: { name: userName || userEmail, email: userEmail },
-    organization: { id: row.organization_id, name: row.organization_name, plan: row.plan },
+    organization: {
+      id: row.organization_id,
+      name: row.organization_name,
+      plan: row.plan,
+      billingStatus: row.subscription_status || "trialing",
+      billingInterval: row.subscription_billing_interval || "monthly",
+      trialEndsAt: row.trial_ends_at?.toISOString() ?? null,
+      currentPeriodEnd: row.subscription_current_period_end?.toISOString() ?? null,
+    },
     program: {
       id: row.program_id,
       name: row.program_name,
