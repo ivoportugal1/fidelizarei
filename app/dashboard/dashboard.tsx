@@ -8,6 +8,15 @@ type GeneratedCode = { code: string; url: string };
 type WalletSettings = DashboardData["walletSettings"];
 type PointTheme = WalletSettings["pointTheme"];
 
+function normalizeAssetUrl(value: string | null) {
+  if (!value) return null;
+  if (value.startsWith("http") || value.startsWith("/api/")) return value;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+    return `/api/wallet/assets/${value}`;
+  }
+  return value;
+}
+
 const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem atividade";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CL";
@@ -209,7 +218,11 @@ function Rewards({ data }: { data: DashboardData }) {
 }
 
 function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message: string) => void }) {
-  const [settings, setSettings] = useState<WalletSettings>(data.walletSettings);
+  const [settings, setSettings] = useState<WalletSettings>({
+    ...data.walletSettings,
+    logoUrl: normalizeAssetUrl(data.walletSettings.logoUrl),
+    coverUrl: normalizeAssetUrl(data.walletSettings.coverUrl),
+  });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "cover" | null>(null);
   const previewPoints = Math.min(4, settings.pointsGoal);

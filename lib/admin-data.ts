@@ -60,7 +60,7 @@ type ContextRow = {
   subscription_current_period_end: Date | null;
 };
 
-export async function getDashboardData(userId: string, userEmail: string, userName: string | null): Promise<DashboardData> {
+export async function getDashboardData(userId: string, userEmail: string, userName: string | null, origin = ""): Promise<DashboardData> {
   const context = await query<ContextRow>(`
     select o.id as organization_id, o.name as organization_name, o.plan,
            o.subscription_status, o.subscription_billing_interval, o.trial_ends_at,
@@ -106,7 +106,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       where t.organization_id = $1
       order by t.created_at desc
       limit 12`, [row.organization_id]),
-    getWalletCardSettings(row.organization_id, defaults),
+    getWalletCardSettings(row.organization_id, defaults, origin),
   ]);
 
   return {
