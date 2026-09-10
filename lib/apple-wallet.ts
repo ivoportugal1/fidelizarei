@@ -254,27 +254,27 @@ function firstName(value: string) {
 
 async function buildAppleStripImages(input: {
   settings: WalletCardSettings;
-  coverImage: Buffer | null;
   currentPoints: number;
   pointsGoal: number;
 }) {
-  const { settings, coverImage, currentPoints, pointsGoal } = input;
+  const { settings, currentPoints, pointsGoal } = input;
   const width = 1125;
   const height = 369;
-  const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
   const cardGreen = settings.primaryColor || "#06420D";
   const accent = settings.secondaryColor || "#14E28B";
+  const foreground = readableOn(cardGreen);
   const theme = normalizedProgressTheme(settings.pointTheme);
   const total = Math.max(1, Math.min(pointsGoal, 20));
   const earned = Math.max(0, Math.min(currentPoints, total));
-  const iconGap = total > 12 ? 12 : 20;
-  const iconSize = Math.floor(Math.min(104, (width - 150 - iconGap * (total - 1)) / total));
+  const iconGap = total > 12 ? 10 : 18;
+  const iconSize = Math.floor(Math.min(86, (width - 160 - iconGap * (total - 1)) / total));
   const progressWidth = iconSize * total + iconGap * (total - 1);
   const startX = Math.round((width - progressWidth) / 2);
-  const startY = Math.round((height - iconSize) / 2);
+  const startY = 188;
   const iconColor = accent;
-  const unearnedColor = readableOn(cardGreen);
+  const unearnedColor = foreground;
   const iconTextColor = readableOn(accent);
+  const progressLabel = `${Math.min(currentPoints, pointsGoal)}/${pointsGoal} ${settings.progressLabel}`;
   const icons = Array.from({ length: total }).map((_, index) => progressIconSvg({
     theme,
     index,
@@ -300,10 +300,11 @@ async function buildAppleStripImages(input: {
       </radialGradient>
     </defs>
     <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
-    ${coverData ? `<image href="${coverData}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>` : ""}
-    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)" opacity="${coverData ? ".72" : ".96"}"/>
-    <rect width="${width}" height="${height}" fill="url(#glow)" opacity="${coverData ? ".36" : ".95"}"/>
-    <rect x="42" y="42" width="${width - 84}" height="${height - 84}" rx="34" fill="#000000" opacity=".08"/>
+    <rect width="${width}" height="${height}" rx="38" fill="url(#glow)" opacity=".95"/>
+    <rect x="42" y="42" width="${width - 84}" height="${height - 84}" rx="34" fill="#000000" opacity=".10"/>
+    <text x="80" y="100" font-family="Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="7" fill="${foreground}" opacity=".82">${xmlEscape("PROGRESSO")}</text>
+    <text x="80" y="158" font-family="Arial, sans-serif" font-size="54" font-weight="800" fill="${foreground}">${xmlEscape(progressLabel)}</text>
+    <text x="${width - 80}" y="158" text-anchor="end" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="${foreground}" opacity=".76">${xmlEscape(settings.rewardText)}</text>
     ${icons}
   </svg>`;
 
@@ -465,12 +466,10 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const certificates = extractCertificatesFromP12();
   const brandLogo = await getFallbackLogo();
   const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
-  const coverImage = await fetchPngAsset(settings.coverUrl);
   const appIcons = await buildAppleIconImages(brandLogo);
   const logoBadge = await buildAppleLogoBadgeImages(merchantLogo);
   const stripImages = await buildAppleStripImages({
     settings,
-    coverImage,
     currentPoints,
     pointsGoal,
   });
@@ -571,17 +570,22 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
         primaryFields: [],
         secondaryFields: [
           {
+            key: "progress_text",
+            label: "PROGRESSO",
+            value: `${currentPoints}/${pointsGoal} ${settings.progressLabel}`,
+          },
+          {
             key: "customer",
             label: "CLIENTE",
             value: shortField(displayName, 18),
           },
+        ],
+        auxiliaryFields: [
           {
             key: "status",
             label: "STATUS",
             value: completed ? "Recompensa disponível" : "Ativo",
           },
-        ],
-        auxiliaryFields: [
           {
             key: "reward",
             label: "RECOMPENSA",
