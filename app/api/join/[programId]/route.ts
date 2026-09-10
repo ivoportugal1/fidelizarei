@@ -62,20 +62,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const customerResult = await client.query<{ id: string }>(`
       insert into customers (organization_id, phone_e164, first_name, last_name, full_name, status, deactivated_at)
       values ($1, $2, $3, $4, $5, 'active', null)
-      on conflict (organization_id, phone_e164) do update set
-        first_name = excluded.first_name,
-        last_name = excluded.last_name,
-        full_name = excluded.full_name,
-        status = 'active',
-        deactivated_at = null
+      on conflict (organization_id, phone_e164) do nothing
       returning id`, [program.organization_id, phone, firstName, lastName, `${firstName} ${lastName}`]);
     const row = customerResult.rows[0];
+    if (!row) throw new Error("phone_already_registered");
     await client.query(`
       insert into loyalty_balances (customer_id, program_id, points, rewards_available)
       values ($1, $2, 0, 0)
       on conflict (customer_id, program_id) do nothing`, [row.id, program.program_id]);
     return row;
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "phone_already_registered") return null;
+    throw error;
   });
+
+  if (!customer) {
+    return NextResponse.json({ ok: false, error: "phone_already_registered" }, { status: 409 });
+  }
 
   const response = NextResponse.json({ ok: true, enrolled: true });
   response.cookies.set("fideliza_customer", createCustomerSession(customer.id), {
