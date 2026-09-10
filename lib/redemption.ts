@@ -30,6 +30,11 @@ async function redeemWithClient(client: PoolClient, code: string, customerId: st
   }
   if (!record.program_active) throw new Error("program_not_active");
   if (record.customer_id && record.customer_id !== customerId) throw new Error("code_belongs_to_another_customer");
+  const customer = await client.query<{ id: string }>(
+    "select id from customers where id = $1 and organization_id = $2 and status = 'active' limit 1",
+    [customerId, record.organization_id],
+  );
+  if (!customer.rows[0]) throw new Error("customer_not_enrolled");
 
   await client.query("update redemption_codes set status = 'redeemed', redeemed_at = now(), redeemed_by_customer_id = $1 where id = $2", [customerId, record.id]);
   await client.query(`insert into point_transactions (organization_id, customer_id, program_id, redemption_code_id, kind, points_delta)

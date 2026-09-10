@@ -308,7 +308,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     join organizations o on o.id = c.organization_id
     join loyalty_programs p on p.organization_id = o.id and p.active = true
     left join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = p.id
-    where c.id = $1
+    where c.id = $1 and c.status = 'active'
     order by p.created_at asc
     limit 1`, [customerId]);
 

@@ -12,7 +12,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
     const { code } = await params;
     const record = await getCodeForEnrollment(code);
     if (!record) return errorResponse("invalid_code", 404);
-    return NextResponse.json({ ok: true, status: record.status, programName: record.program_name, organizationName: record.organization_name });
+    return NextResponse.json({ ok: true, status: record.status, programName: record.program_name, organizationName: record.organization_name, joinUrl: `/join/${record.program_id}` });
   } catch { return errorResponse("service_unavailable", 503); }
 }
 
@@ -25,7 +25,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ code: str
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "unable_to_redeem";
-    const known = ["invalid_code", "code_already_used", "code_expired", "code_belongs_to_another_customer", "program_not_active"];
-    return errorResponse(known.includes(message) ? message : "unable_to_redeem", known.includes(message) ? 409 : 500);
+    const known = ["invalid_code", "code_already_used", "code_expired", "code_belongs_to_another_customer", "program_not_active", "customer_not_enrolled"];
+    return errorResponse(known.includes(message) ? message : "unable_to_redeem", message === "customer_not_enrolled" ? 403 : known.includes(message) ? 409 : 500);
   }
 }

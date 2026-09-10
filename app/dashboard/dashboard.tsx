@@ -65,6 +65,22 @@ function QrPreview({ value }: { value: string }) {
   return <canvas ref={ref} aria-label="QR Code de resgate" />;
 }
 
+async function downloadQr(value: string, filename: string) {
+  const dataUrl = await QRCode.toDataURL(value, { width: 720, margin: 2, color: { dark: "#17211f", light: "#ffffff" } });
+  const link = document.createElement("a");
+  link.href = dataUrl;
+  link.download = filename;
+  link.click();
+}
+
+async function printQr(value: string, title: string) {
+  const dataUrl = await QRCode.toDataURL(value, { width: 720, margin: 2, color: { dark: "#17211f", light: "#ffffff" } });
+  const printWindow = window.open("", "_blank", "width=560,height=720");
+  if (!printWindow) return;
+  printWindow.document.write(`<html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;text-align:center;padding:32px;color:#17211f}img{width:360px;height:360px}p{word-break:break-all;color:#66716d}</style></head><body><h1>${title}</h1><img src="${dataUrl}" alt="${title}" /><p>${value}</p><script>window.onload=()=>window.print()</script></body></html>`);
+  printWindow.document.close();
+}
+
 export default function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [active, setActive] = useState("Visão geral");
   const [quantity, setQuantity] = useState(25);
@@ -126,6 +142,18 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     window.setTimeout(() => window.location.reload(), 700);
   }
 
+  async function removeCustomer(customerId: string, customerName: string) {
+    if (!window.confirm(`Excluir ${customerName} deste programa?\n\nO histórico e o acesso deste cliente ao programa poderão ser afetados.`)) return;
+    const response = await fetch(`/api/customers/${customerId}`, { method: "DELETE" });
+    const body = await response.json().catch(() => ({ ok: false }));
+    if (!response.ok || !body.ok) {
+      flash("Não consegui excluir este cliente do programa.");
+      return;
+    }
+    flash("Cliente removido deste programa.");
+    window.setTimeout(() => window.location.reload(), 700);
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -161,7 +189,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
 
         {active === "Visão geral" ? <Overview data={initialData} onGenerate={() => setShowGenerator(true)} /> :
           active === "QR Codes" ? <Codes data={initialData} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
-          active === "Clientes" ? <Customers data={initialData} onRedeemReward={confirmRewardRedeemed} /> :
+          active === "Clientes" ? <Customers data={initialData} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
           active === "Campanhas" ? <Campaigns data={initialData} /> :
           active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={flash} /> :
           <Rewards data={initialData} onRedeemReward={confirmRewardRedeemed} />}
@@ -214,11 +242,74 @@ function RecentActivity({ data }: { data: DashboardData }) {
 
 function Codes({ data, codes, firstCode, onGenerate, onExport }: { data: DashboardData; codes: GeneratedCode[]; firstCode?: string; onGenerate: () => void; onExport: () => void }) {
   const preview = firstCode || "https://fidelizarei.vercel.app/r/GERADO-APOS-CLIQUE";
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">EMBALAGENS E PEDIDOS</div><h2>QR Codes</h2><p>Gere códigos únicos para imprimir ou inserir nos seus pedidos.</p></div><div className="top-actions"><button className="button button-light" disabled={!codes.length} onClick={onExport}>Exportar CSV</button><button className="button button-dark" onClick={onGenerate}>+ Gerar QR Codes</button></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.activeCodes)} label="Códigos disponíveis" trend="Antes desta tela" /><Metric value={formatNumber(data.metrics.redeemedCodes)} label="Códigos resgatados" trend="Uso único" /><Metric value={formatNumber(codes.length)} label="Gerados agora" trend="Exportáveis" /></section><article className="panel empty-qr"><QrPreview value={preview} /><div><h3>{codes.length ? "Primeiro QR gerado" : "Gere uma remessa"}</h3><p>{codes.length ? "Estes links só aparecem agora. Exporte o CSV antes de sair desta página." : "Os códigos são gravados no banco como hash e liberam pontos na tela pública de resgate."}</p>{firstCode && <a className="button button-light" href={firstCode} target="_blank">Abrir página de resgate →</a>}</div></article>{codes.length > 0 && <article className="panel activity code-list"><table><thead><tr><th>CÓDIGO</th><th>URL</th></tr></thead><tbody>{codes.slice(0, 20).map((item) => <tr key={item.code}><td><strong>{item.code}</strong></td><td className="date">{item.url}</td></tr>)}</tbody></table></article>}</div>;
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://fidelizarei.vercel.app";
+  const joinUrl = `${baseUrl}/join/${data.program.id}`;
+  return (
+    <div className="content">
+      <section className="section-intro">
+        <div>
+          <div className="eyebrow">ADESÃO E PONTUAÇÃO</div>
+          <h2>QR Codes</h2>
+          <p>Use o QR fixo para cadastrar clientes. Use QR de pontuação somente para compras.</p>
+        </div>
+        <div className="top-actions">
+          <button className="button button-light" disabled={!codes.length} onClick={onExport}>Exportar CSV</button>
+          <button className="button button-dark" onClick={onGenerate}>+ Gerar QR de pontuação</button>
+        </div>
+      </section>
+      <section className="metrics">
+        <Metric value="Fixo" label="QR de adesão" trend="Não pontua" />
+        <Metric value={formatNumber(data.metrics.activeCodes)} label="Pontuação disponível" trend="Uso único" />
+        <Metric value={formatNumber(data.metrics.redeemedCodes)} label="Pontuação usada" trend="Já resgatados" />
+        <Metric value={formatNumber(codes.length)} label="Gerados agora" trend="Exportáveis" />
+      </section>
+      <div className="qr-split">
+        <article className="panel empty-qr">
+          <QrPreview value={joinUrl} />
+          <div>
+            <h3>QR de adesão fixo</h3>
+            <p>Use este QR para cadastrar novos clientes. Ele não adiciona pontos e pode ficar no balcão, mesa, embalagem ou Instagram.</p>
+            <div className="qr-actions">
+              <button className="button button-light" onClick={() => navigator.clipboard?.writeText(joinUrl)}>Copiar link</button>
+              <button className="button button-light" onClick={() => downloadQr(joinUrl, "qr-adesao-fidelizarei.png")}>Baixar QR</button>
+              <button className="button button-light" onClick={() => printQr(joinUrl, "QR de adesão")}>Imprimir</button>
+              <a className="button button-light" href={joinUrl} target="_blank">Abrir →</a>
+            </div>
+          </div>
+        </article>
+        <article className="panel empty-qr">
+          <QrPreview value={preview} />
+          <div>
+            <h3>{codes.length ? "Primeiro QR de pontuação" : "QR de pontuação"}</h3>
+            <p>{codes.length ? "Cada link vale ponto uma única vez. Exporte o CSV antes de sair desta página." : "Gere QRs únicos para compras. Eles não cadastram clientes; o cliente precisa aderir antes."}</p>
+            {firstCode && (
+              <div className="qr-actions">
+                <button className="button button-light" onClick={() => navigator.clipboard?.writeText(firstCode)}>Copiar link</button>
+                <button className="button button-light" onClick={() => downloadQr(firstCode, "qr-pontuacao-fidelizarei.png")}>Baixar QR</button>
+                <button className="button button-light" onClick={() => printQr(firstCode, "QR de pontuação")}>Imprimir</button>
+                <a className="button button-light" href={firstCode} target="_blank">Abrir →</a>
+              </div>
+            )}
+          </div>
+        </article>
+      </div>
+      {codes.length > 0 && (
+        <article className="panel activity code-list">
+          <table>
+            <thead><tr><th>CÓDIGO</th><th>URL</th></tr></thead>
+            <tbody>{codes.slice(0, 20).map((item) => <tr key={item.code}><td><strong>{item.code}</strong></td><td className="date">{item.url}</td></tr>)}</tbody>
+          </table>
+        </article>
+      )}
+    </div>
+  );
 }
 
-function Customers({ data, onRedeemReward }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void }) {
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por resgate de QR Code.</p></div></section><article className="panel activity"><table><thead><tr><th>CLIENTE</th><th>PONTOS</th><th>RECOMPENSAS</th><th>ÚLTIMA ATIVIDADE</th><th>AÇÃO</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.rewards > 0 ? "status ready" : "status"}>{customer.rewards}</span></td><td className="date">{formatDate(customer.updatedAt)}</td><td>{customer.rewards > 0 ? <button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button> : <span className="date">—</span>}</td></tr>) : <tr><td colSpan={5}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
+function Customers({ data, onRedeemReward, onRemoveCustomer }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void; onRemoveCustomer: (customerId: string, customerName: string) => void }) {
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por adesão ao programa.</p></div></section><article className="panel activity"><table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>PROGRESSO</th><th>STATUS</th><th>CADASTRO</th><th>AÇÃO</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => {
+    const status = customer.status === "inactive" ? "Inativo" : customer.rewards > 0 ? "Recompensa disponível" : "Ativo";
+    return <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td className="date">{customer.phone || "—"}</td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.status === "inactive" ? "status" : customer.rewards > 0 ? "status ready" : "status"}>{status}</span></td><td className="date">{formatDate(customer.createdAt)}</td><td className="table-actions">{customer.status === "active" && customer.rewards > 0 && <button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button>}{customer.status === "active" && <button className="link-button danger" onClick={() => onRemoveCustomer(customer.id, customer.name)}>Excluir cliente</button>}</td></tr>;
+  }) : <tr><td colSpan={6}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
 }
 
 function Campaigns({ data }: { data: DashboardData }) {

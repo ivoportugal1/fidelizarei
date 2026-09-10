@@ -34,6 +34,8 @@ export type DashboardData = {
     phone: string | null;
     points: number;
     rewards: number;
+    status: "active" | "inactive";
+    createdAt: string;
     updatedAt: string | null;
   }>;
   recent: Array<{
@@ -91,13 +93,13 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
     query<{ total: string | null }>("select coalesce(sum(rewards_available), 0) as total from loyalty_balances lb join loyalty_programs p on p.id = lb.program_id where p.organization_id = $1", [row.organization_id]),
     query<{ count: string }>("select count(*) from redemption_codes where organization_id = $1 and status = 'active'", [row.organization_id]),
     query<{ count: string }>("select count(*) from redemption_codes where organization_id = $1 and status = 'redeemed'", [row.organization_id]),
-    query<{ id: string; full_name: string | null; phone_e164: string | null; points: number; rewards_available: number; updated_at: Date | null }>(`
-      select c.id, c.full_name, c.phone_e164, coalesce(lb.points, 0) as points,
+    query<{ id: string; full_name: string | null; phone_e164: string | null; status: "active" | "inactive"; created_at: Date; points: number; rewards_available: number; updated_at: Date | null }>(`
+      select c.id, c.full_name, c.phone_e164, c.status, c.created_at, coalesce(lb.points, 0) as points,
              coalesce(lb.rewards_available, 0) as rewards_available, lb.updated_at
       from customers c
       left join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = $2
       where c.organization_id = $1
-      order by lb.updated_at desc nulls last, c.created_at desc
+      order by case when c.status = 'active' then 0 else 1 end, lb.updated_at desc nulls last, c.created_at desc
       limit 20`, [row.organization_id, row.program_id]),
     query<{ id: string; full_name: string | null; phone_e164: string | null; points_delta: number; created_at: Date }>(`
       select t.id, c.full_name, c.phone_e164, t.points_delta, t.created_at
@@ -142,6 +144,8 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       phone: customer.phone_e164,
       points: Number(customer.points),
       rewards: Number(customer.rewards_available),
+      status: customer.status,
+      createdAt: customer.created_at.toISOString(),
       updatedAt: customer.updated_at?.toISOString() ?? null,
     })),
     recent: recent.rows.map((item) => ({
