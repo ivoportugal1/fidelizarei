@@ -518,7 +518,7 @@ function CardDesigner({
                 <span>Foto/capa</span>
                 {settings.coverUrl ? <img src={settings.coverUrl} alt="Capa do cartão" /> : <b>Capa</b>}
                 <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadAsset("cover", event.target.files?.[0])} />
-                <small>{uploading === "cover" ? "Enviando..." : "Imagem horizontal funciona melhor"}</small>
+                <small>{uploading === "cover" ? "Enviando..." : "Usada no Google Wallet; Apple usa progresso no centro"}</small>
               </label>
             </div>
             <label>Nome do estabelecimento<input value={settings.businessName} onChange={(e) => update("businessName", e.target.value)} /></label>
@@ -609,10 +609,14 @@ function AppleWalletPreview({ settings, points }: { settings: WalletSettings; po
       </div>
       <div className="apple-simple-count"><small>{settings.progressLabel.toUpperCase()}</small><b>{points}/{settings.pointsGoal}</b></div>
     </div>
-    <div className="apple-simple-image" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}</div>
+    <div className="apple-simple-progress" style={{ backgroundColor: settings.primaryColor }}>
+      <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.secondaryColor} accent={settings.secondaryColor} />
+    </div>
     <div className="apple-simple-fields">
-      <div><small>NOME</small><b>{previewCustomer.name.split(" ")[0]}</b></div>
+      <div><small>PROGRESSO</small><b>{points}/{settings.pointsGoal} {settings.progressLabel}</b></div>
+      <div><small>CLIENTE</small><b>{previewCustomer.name.split(" ")[0]}</b></div>
       <div><small>STATUS</small><b>{completed ? "Disponível" : "Ativo"}</b></div>
+      <div><small>RECOMPENSA</small><b>{settings.rewardText}</b></div>
     </div>
   </div>;
 }
