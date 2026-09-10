@@ -88,9 +88,14 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
   });
 
   const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings] = await Promise.all([
-    query<{ count: string }>("select count(*) from customers where organization_id = $1", [row.organization_id]),
+    query<{ count: string }>("select count(*) from customers where organization_id = $1 and status = 'active'", [row.organization_id]),
     query<{ total: string | null }>("select coalesce(sum(points_delta), 0) as total from point_transactions where organization_id = $1 and kind = 'earn'", [row.organization_id]),
-    query<{ total: string | null }>("select coalesce(sum(rewards_available), 0) as total from loyalty_balances lb join loyalty_programs p on p.id = lb.program_id where p.organization_id = $1", [row.organization_id]),
+    query<{ total: string | null }>(`
+      select coalesce(sum(lb.rewards_available), 0) as total
+      from loyalty_balances lb
+      join loyalty_programs p on p.id = lb.program_id
+      join customers c on c.id = lb.customer_id
+      where p.organization_id = $1 and c.status = 'active'`, [row.organization_id]),
     query<{ count: string }>("select count(*) from redemption_codes where organization_id = $1 and status = 'active'", [row.organization_id]),
     query<{ count: string }>("select count(*) from redemption_codes where organization_id = $1 and status = 'redeemed'", [row.organization_id]),
     query<{ id: string; full_name: string | null; phone_e164: string | null; status: "active" | "inactive"; created_at: Date; points: number; rewards_available: number; updated_at: Date | null }>(`
@@ -98,8 +103,8 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
              coalesce(lb.rewards_available, 0) as rewards_available, lb.updated_at
       from customers c
       left join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = $2
-      where c.organization_id = $1
-      order by case when c.status = 'active' then 0 else 1 end, lb.updated_at desc nulls last, c.created_at desc
+      where c.organization_id = $1 and c.status = 'active'
+      order by lb.updated_at desc nulls last, c.created_at desc
       limit 20`, [row.organization_id, row.program_id]),
     query<{ id: string; full_name: string | null; phone_e164: string | null; points_delta: number; created_at: Date }>(`
       select t.id, c.full_name, c.phone_e164, t.points_delta, t.created_at
