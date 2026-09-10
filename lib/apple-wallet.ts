@@ -339,15 +339,17 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
   const makeBadge = async (scale: number) => {
     const width = 160 * scale;
     const height = 50 * scale;
-    const badgeSize = 50 * scale;
-    const padding = Math.round(badgeSize * 0.18);
-    const logoSize = badgeSize - padding * 2;
+    const paddingX = 10 * scale;
+    const paddingY = 7 * scale;
     const preparedLogo = await sharp(logo)
-      .resize(logoSize, logoSize, { fit: "inside", withoutEnlargement: true })
+      .resize(width - paddingX * 2, height - paddingY * 2, { fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
-    const circle = Buffer.from(`<svg width="${badgeSize}" height="${badgeSize}" viewBox="0 0 ${badgeSize} ${badgeSize}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${badgeSize / 2}" cy="${badgeSize / 2}" r="${badgeSize / 2}" fill="#fffdf4"/>
+    const metadata = await sharp(preparedLogo).metadata();
+    const logoWidth = metadata.width ?? width - paddingX * 2;
+    const logoHeight = metadata.height ?? height - paddingY * 2;
+    const badge = Buffer.from(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="${height / 2}" fill="#fffdf4"/>
     </svg>`);
     return sharp({
       create: {
@@ -358,8 +360,8 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
       },
     })
       .composite([
-        { input: circle, left: 0, top: 0 },
-        { input: preparedLogo, left: padding, top: padding },
+        { input: badge, left: 0, top: 0 },
+        { input: preparedLogo, left: Math.round((width - logoWidth) / 2), top: Math.round((height - logoHeight) / 2) },
       ])
       .png()
       .toBuffer();
