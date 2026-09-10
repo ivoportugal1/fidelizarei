@@ -179,8 +179,7 @@ export function buildQrPdf(codes: QrCodeItem[]) {
   const cellWidth = (pageWidth - margin * 2) / columns;
   const cellHeight = (pageHeight - margin * 2) / rows;
   const qrSize = 86;
-  const objects: string[] = [];
-  const pages: number[] = [];
+  const pageObjects: Array<{ content: string }> = [];
 
   for (let pageStart = 0; pageStart < codes.length; pageStart += columns * rows) {
     const pageCodes = codes.slice(pageStart, pageStart + columns * rows);
@@ -210,16 +209,23 @@ export function buildQrPdf(codes: QrCodeItem[]) {
     });
 
     const stream = commands.join("\n");
-    const contentId = objects.push(`<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`);
-    const pageId = objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`);
-    pages.push(pageId);
+    pageObjects.push({
+      content: `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`,
+    });
   }
 
-  objects.unshift(
+  const pageIds = pageObjects.map((_, index) => 4 + index * 2);
+  const objects: string[] = [
     `<< /Type /Catalog /Pages 2 0 R >>`,
-    `<< /Type /Pages /Kids [${pages.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages.length} >>`,
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`,
     `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`,
-  );
+  ];
+  pageObjects.forEach((pageObject, index) => {
+    const pageId = 4 + index * 2;
+    const contentId = pageId + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(pageObject.content);
+  });
 
   const offsets: number[] = [0];
   let body = "%PDF-1.4\n";
