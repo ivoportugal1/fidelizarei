@@ -128,6 +128,95 @@ function progressText(theme: string, current: number, total: number) {
   return Array.from({ length: limit }).map((_, index) => index < current ? "●" : "○").join(" ");
 }
 
+const progressIconPaths: Record<string, string[]> = {
+  cafeteria: [
+    "M4 8h11.5v5.3a4.8 4.8 0 0 1-4.8 4.8H8.8A4.8 4.8 0 0 1 4 13.3V8Z",
+    "M15.5 10h2.1a2.3 2.3 0 0 1 0 4.6h-2.1",
+    "M7 5.2h6",
+  ],
+  acaiteria: [
+    "M5 9h14l-1.5 8.5H6.5L5 9Z",
+    "M8 9c.4-2.1 1.8-3.2 4-3.2s3.6 1.1 4 3.2",
+    "M8.8 13h6.4",
+  ],
+  sorveteria: [
+    "M8 10a4 4 0 0 1 8 0",
+    "M7 10h10l-5 10-5-10Z",
+    "M10 14h4",
+  ],
+  padaria: [
+    "M5 13c0-4 3-7 7-7s7 3 7 7c0 3-2.5 5-7 5s-7-2-7-5Z",
+    "M9 8c-1 2-1 4 0 6",
+    "M13 7c-1 2-1 5 0 8",
+  ],
+  pizzaria: [
+    "M6 20 18 4c-4 0-8 1.5-12 4v12Z",
+    "M9 11h.1",
+    "M11 15h.1",
+    "M13 9h.1",
+  ],
+  hamburgueria: [
+    "M5 11c.5-3 3-5 7-5s6.5 2 7 5H5Z",
+    "M5 14h14",
+    "M6 17h12",
+    "M8 11h.1M12 9h.1M16 11h.1",
+  ],
+  barbearia: [
+    "m5 5 14 14",
+    "m19 5-7 7",
+    "M8.5 17a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z",
+    "M8.5 7a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z",
+  ],
+  petshop: [
+    "M8 13c2-2 6-2 8 0l1 1.5c1.5 2.2 0 4.5-2.5 3.8a9 9 0 0 0-5 0C7 19 5.5 16.7 7 14.5L8 13Z",
+    "M8.7 9A1.7 1.7 0 1 1 5.3 9a1.7 1.7 0 0 1 3.4 0Z",
+    "M12.7 7A1.7 1.7 0 1 1 9.3 7a1.7 1.7 0 0 1 3.4 0Z",
+    "M16.7 7a1.7 1.7 0 1 1-3.4 0 1.7 1.7 0 0 1 3.4 0Z",
+    "M20.7 9a1.7 1.7 0 1 1-3.4 0 1.7 1.7 0 0 1 3.4 0Z",
+  ],
+};
+
+function normalizedProgressTheme(theme: string) {
+  const aliases: Record<string, string> = {
+    cafe: "cafeteria",
+    acai: "acaiteria",
+    sorvete: "sorveteria",
+    pizza: "pizzaria",
+    hamburguer: "hamburgueria",
+    pao: "padaria",
+  };
+  return aliases[theme] || theme;
+}
+
+function progressIconSvg(input: {
+  theme: string;
+  index: number;
+  earned: boolean;
+  x: number;
+  y: number;
+  size: number;
+  earnedColor: string;
+  unearnedColor: string;
+  textColor: string;
+}) {
+  const { theme, index, earned, x, y, size, earnedColor, unearnedColor, textColor } = input;
+  if (theme === "universal") {
+    const radius = size / 2;
+    return `<g>
+      <circle cx="${x + radius}" cy="${y + radius}" r="${radius - 3}" fill="${earned ? earnedColor : "transparent"}" stroke="${earned ? earnedColor : unearnedColor}" stroke-width="4"/>
+      <text x="${x + radius}" y="${y + radius + 10}" text-anchor="middle" font-size="${Math.round(size * 0.46)}" font-weight="800" font-family="Arial, sans-serif" fill="${earned ? textColor : unearnedColor}">${index + 1}</text>
+    </g>`;
+  }
+
+  const paths = progressIconPaths[theme] ?? progressIconPaths.cafeteria;
+  const stroke = earned ? earnedColor : unearnedColor;
+  const fill = earned ? earnedColor : "transparent";
+  const strokeWidth = earned ? 1.7 : 2.2;
+  return `<g transform="translate(${x} ${y}) scale(${size / 24})" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+    ${paths.map((path) => `<path d="${path}"/>`).join("")}
+  </g>`;
+}
+
 function xmlEscape(value: string) {
   return value.replace(/[<>&"']/g, (char) => ({
     "<": "&lt;",
@@ -166,13 +255,37 @@ function firstName(value: string) {
 async function buildAppleStripImages(input: {
   settings: WalletCardSettings;
   coverImage: Buffer | null;
+  currentPoints: number;
+  pointsGoal: number;
 }) {
-  const { settings, coverImage } = input;
+  const { settings, coverImage, currentPoints, pointsGoal } = input;
   const width = 1125;
   const height = 369;
   const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
   const cardGreen = settings.primaryColor || "#06420D";
   const accent = settings.secondaryColor || "#14E28B";
+  const theme = normalizedProgressTheme(settings.pointTheme);
+  const total = Math.max(1, Math.min(pointsGoal, 20));
+  const earned = Math.max(0, Math.min(currentPoints, total));
+  const iconGap = total > 12 ? 12 : 20;
+  const iconSize = Math.floor(Math.min(104, (width - 150 - iconGap * (total - 1)) / total));
+  const progressWidth = iconSize * total + iconGap * (total - 1);
+  const startX = Math.round((width - progressWidth) / 2);
+  const startY = Math.round((height - iconSize) / 2);
+  const iconColor = accent;
+  const unearnedColor = readableOn(cardGreen);
+  const iconTextColor = readableOn(accent);
+  const icons = Array.from({ length: total }).map((_, index) => progressIconSvg({
+    theme,
+    index,
+    earned: index < earned,
+    x: startX + index * (iconSize + iconGap),
+    y: startY,
+    size: iconSize,
+    earnedColor: iconColor,
+    unearnedColor,
+    textColor: iconTextColor,
+  })).join("");
 
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
     <defs>
@@ -188,8 +301,10 @@ async function buildAppleStripImages(input: {
     </defs>
     <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
     ${coverData ? `<image href="${coverData}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>` : ""}
-    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)" opacity="${coverData ? ".24" : ".95"}"/>
-    <rect width="${width}" height="${height}" fill="url(#glow)" opacity="${coverData ? ".38" : ".95"}"/>
+    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)" opacity="${coverData ? ".72" : ".96"}"/>
+    <rect width="${width}" height="${height}" fill="url(#glow)" opacity="${coverData ? ".36" : ".95"}"/>
+    <rect x="42" y="42" width="${width - 84}" height="${height - 84}" rx="34" fill="#000000" opacity=".08"/>
+    ${icons}
   </svg>`;
 
   const source = Buffer.from(svg);
@@ -356,6 +471,8 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const stripImages = await buildAppleStripImages({
     settings,
     coverImage,
+    currentPoints,
+    pointsGoal,
   });
   const backFields = [
     {
@@ -447,15 +564,11 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       authenticationToken: token,
       storeCard: {
         headerFields: [{
-          key: "stamps",
+          key: "progress",
           label: settings.progressLabel.toUpperCase(),
           value: `${currentPoints}/${pointsGoal}`,
         }],
-        primaryFields: [{
-          key: "program",
-          label: "PROGRAMA",
-          value: "Programa de fidelidade",
-        }],
+        primaryFields: [],
         secondaryFields: [
           {
             key: "customer",
@@ -468,7 +581,13 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
             value: completed ? "Recompensa disponível" : "Ativo",
           },
         ],
-        auxiliaryFields: [],
+        auxiliaryFields: [
+          {
+            key: "reward",
+            label: "RECOMPENSA",
+            value: shortField(settings.rewardText, 24),
+          },
+        ],
         backFields,
       },
     }))),
