@@ -4,9 +4,19 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
 import type { DashboardData } from "@/lib/admin-data";
 
-type GeneratedCode = { code: string; url: string };
+type GeneratedCode = {
+  id: string;
+  code: string;
+  url: string;
+  status: "active" | "redeemed" | "voided" | "expired";
+  createdAt: string;
+  redeemedAt: string | null;
+};
+type QrBatch = DashboardData["qrBatches"][number];
 type WalletSettings = DashboardData["walletSettings"];
 type PointTheme = WalletSettings["pointTheme"];
+const MIN_POINT_QR_BATCH = 1;
+const MAX_POINT_QR_BATCH = 500;
 
 function normalizeAssetUrl(value: string | null) {
   if (!value) return null;
@@ -92,6 +102,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<QrBatch | null>(data.qrBatches[0] ?? null);
   const firstCode = generatedCodes[0]?.url;
 
   useEffect(() => {
@@ -106,6 +117,10 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   };
 
   async function generateCodes() {
+    if (!Number.isInteger(quantity) || quantity < MIN_POINT_QR_BATCH || quantity > MAX_POINT_QR_BATCH) {
+      flash(`Informe uma quantidade entre ${MIN_POINT_QR_BATCH} e ${MAX_POINT_QR_BATCH}.`);
+      return;
+    }
     setLoading(true);
     const response = await fetch("/api/codes", {
       method: "POST",
@@ -115,13 +130,29 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     const body = await response.json();
     setLoading(false);
     if (!response.ok || !body.ok) {
-      flash("Não consegui gerar os QR Codes. Confira o banco e tente de novo.");
+      flash(body.message || "Não consegui gerar os QR Codes. Confira o banco e tente de novo.");
       return;
     }
     setGeneratedCodes(body.codes);
+    setSelectedBatch(body.batch);
+    setData((current) => ({ ...current, qrBatches: [body.batch, ...current.qrBatches.filter((batch) => batch.id !== body.batch.id)].slice(0, 6) }));
     setShowGenerator(false);
     setActive("QR Codes");
     flash(`${body.codes.length.toLocaleString("pt-BR")} QR Codes reais gerados.`);
+  }
+
+  async function loadBatch(batch: QrBatch) {
+    setLoading(true);
+    const response = await fetch(`/api/codes/batches/${batch.id}`);
+    const body = await response.json().catch(() => ({ ok: false }));
+    setLoading(false);
+    if (!response.ok || !body.ok) {
+      flash("Não consegui carregar este lote.");
+      return;
+    }
+    setGeneratedCodes(body.codes);
+    setSelectedBatch(batch);
+    flash(`Lote com ${body.codes.length.toLocaleString("pt-BR")} QR Codes carregado.`);
   }
 
   function exportCsv() {
@@ -200,7 +231,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         </header>
 
         {active === "Visão geral" ? <Overview data={data} onGenerate={() => setShowGenerator(true)} /> :
-          active === "QR Codes" ? <Codes data={data} baseUrl={baseUrl} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
+          active === "QR Codes" ? <Codes data={data} baseUrl={baseUrl} codes={generatedCodes} selectedBatch={selectedBatch} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} onLoadBatch={loadBatch} /> :
           active === "Clientes" ? <Customers data={data} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
           active === "Campanhas" ? <Campaigns data={data} /> :
           active === "Personalizar cartão" ? <CardDesigner data={data} onSave={flash} onSettingsChange={(walletSettings) => setData((current) => ({ ...current, walletSettings }))} /> :
@@ -214,7 +245,8 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
             <p className="eyebrow">NOVA REMESSA</p>
             <h2>Gerar QR Codes</h2>
             <p className="muted">Cada código é único, vale {data.program.pointsPerCode} ponto e só pode ser usado uma vez.</p>
-            <label>Quantidade<input type="number" min="1" max="500" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+            <label>Quantidade<input type="number" min={MIN_POINT_QR_BATCH} max={MAX_POINT_QR_BATCH} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
+            <small className="muted">Mínimo {MIN_POINT_QR_BATCH}, máximo {MAX_POINT_QR_BATCH} por lote.</small>
             <button className="button button-coral modal-submit" disabled={loading} onClick={generateCodes}>{loading ? "Gerando..." : `Gerar ${quantity.toLocaleString("pt-BR")} códigos`}</button>
           </section>
         </div>
@@ -252,9 +284,32 @@ function RecentActivity({ data }: { data: DashboardData }) {
   return <section className="panel activity"><div className="panel-header"><div><h3>Atividade recente</h3><p>Últimos pontos creditados</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS</th><th>QUANDO</th></tr></thead><tbody>{data.recent.length ? data.recent.map((item) => <tr key={item.id}><td><span className="avatar">{initials(item.customerName)}</span><b>{item.customerName}</b></td><td><strong className="points">+{item.points}</strong></td><td className="date">{formatDate(item.createdAt)}</td></tr>) : <tr><td colSpan={3}>Nenhum resgate ainda. Gere uma remessa e teste um QR Code.</td></tr>}</tbody></table></section>;
 }
 
-function Codes({ data, baseUrl, codes, firstCode, onGenerate, onExport }: { data: DashboardData; baseUrl: string; codes: GeneratedCode[]; firstCode?: string; onGenerate: () => void; onExport: () => void }) {
+function codeStatusLabel(status: GeneratedCode["status"]) {
+  return status === "redeemed" ? "UTILIZADO" : status === "active" ? "DISPONÍVEL" : status.toUpperCase();
+}
+
+function Codes({
+  data,
+  baseUrl,
+  codes,
+  selectedBatch,
+  firstCode,
+  onGenerate,
+  onExport,
+  onLoadBatch,
+}: {
+  data: DashboardData;
+  baseUrl: string;
+  codes: GeneratedCode[];
+  selectedBatch: QrBatch | null;
+  firstCode?: string;
+  onGenerate: () => void;
+  onExport: () => void;
+  onLoadBatch: (batch: QrBatch) => void;
+}) {
   const preview = firstCode || "https://fidelizarei.vercel.app/r/GERADO-APOS-CLIQUE";
   const joinUrl = `${baseUrl}/join/${data.program.id}`;
+  const batchUrl = selectedBatch ? `/api/codes/batches/${selectedBatch.id}` : "";
   return (
     <div className="content">
       <section className="section-intro">
@@ -265,6 +320,8 @@ function Codes({ data, baseUrl, codes, firstCode, onGenerate, onExport }: { data
         </div>
         <div className="top-actions">
           <button className="button button-light" disabled={!codes.length} onClick={onExport}>Exportar CSV</button>
+          <a className={selectedBatch ? "button button-light" : "button button-light disabled"} href={selectedBatch ? `${batchUrl}/pdf` : undefined}>Baixar PDF</a>
+          <a className={selectedBatch ? "button button-light" : "button button-light disabled"} href={selectedBatch ? `${batchUrl}/zip` : undefined}>Baixar imagens</a>
           <button className="button button-dark" onClick={onGenerate}>+ Gerar QR de pontuação</button>
         </div>
       </section>
@@ -272,7 +329,7 @@ function Codes({ data, baseUrl, codes, firstCode, onGenerate, onExport }: { data
         <Metric value="Fixo" label="QR de adesão" trend="Não pontua" />
         <Metric value={formatNumber(data.metrics.activeCodes)} label="Pontuação disponível" trend="Uso único" />
         <Metric value={formatNumber(data.metrics.redeemedCodes)} label="Pontuação usada" trend="Já resgatados" />
-        <Metric value={formatNumber(codes.length)} label="Gerados agora" trend="Exportáveis" />
+        <Metric value={formatNumber(codes.length)} label={selectedBatch ? "Lote carregado" : "Gerados agora"} trend="Exportáveis" />
       </section>
       <div className="qr-split">
         <article className="panel empty-qr">
@@ -292,24 +349,47 @@ function Codes({ data, baseUrl, codes, firstCode, onGenerate, onExport }: { data
           <QrPreview value={preview} />
           <div>
             <h3>{codes.length ? "Primeiro QR de pontuação" : "QR de pontuação"}</h3>
-            <p>{codes.length ? "Cada link vale ponto uma única vez. Exporte o CSV antes de sair desta página." : "Gere QRs únicos para compras. Eles não cadastram clientes; o cliente precisa aderir antes."}</p>
+            <p>{codes.length ? "Cada link vale ponto uma única vez. Você pode baixar PDF, imprimir ou baixar as imagens sem recriar os códigos." : "Gere QRs únicos para compras. Eles não cadastram clientes; o cliente precisa aderir antes."}</p>
             {firstCode && (
               <div className="qr-actions">
                 <button className="button button-light" onClick={() => navigator.clipboard?.writeText(firstCode)}>Copiar link</button>
                 <button className="button button-light" onClick={() => downloadQr(firstCode, "qr-pontuacao-fidelizarei.png")}>Baixar QR</button>
                 <button className="button button-light" onClick={() => printQr(firstCode, "QR de pontuação")}>Imprimir</button>
                 <a className="button button-light" href={firstCode} target="_blank">Abrir →</a>
+                {selectedBatch && <a className="button button-light" href={`${batchUrl}/print`} target="_blank">Imprimir lote</a>}
               </div>
             )}
           </div>
         </article>
       </div>
+      {data.qrBatches.length > 0 && (
+        <article className="panel activity code-list">
+          <div className="panel-header"><div><h3>Histórico de lotes</h3><p>Reabra um lote para baixar o mesmo PDF ou ZIP, sem criar novos QRs.</p></div></div>
+          <table>
+            <thead><tr><th>LOTE</th><th>CRIADO EM</th><th>QTD</th><th>STATUS</th><th>AÇÕES</th></tr></thead>
+            <tbody>{data.qrBatches.map((batch) => <tr key={batch.id}>
+              <td><strong>{batch.id.slice(0, 8)}</strong></td>
+              <td className="date">{formatDate(batch.createdAt)}</td>
+              <td>{batch.quantity}</td>
+              <td className="date">{batch.active} disponíveis · {batch.redeemed} utilizados</td>
+              <td className="table-actions">
+                <button className="link-button" onClick={() => onLoadBatch(batch)}>Ver lote</button>
+                <a className="link-button" href={`/api/codes/batches/${batch.id}/pdf`}>PDF</a>
+                <a className="link-button" href={`/api/codes/batches/${batch.id}/zip`}>ZIP</a>
+                <a className="link-button" href={`/api/codes/batches/${batch.id}/print`} target="_blank">Imprimir</a>
+              </td>
+            </tr>)}</tbody>
+          </table>
+        </article>
+      )}
       {codes.length > 0 && (
         <article className="panel activity code-list">
+          <div className="panel-header"><div><h3>QR Codes do lote</h3><p>Visualização na tela mantida para uso direto ou conferência.</p></div></div>
           <table>
-            <thead><tr><th>CÓDIGO</th><th>URL</th></tr></thead>
-            <tbody>{codes.slice(0, 20).map((item) => <tr key={item.code}><td><strong>{item.code}</strong></td><td className="date">{item.url}</td></tr>)}</tbody>
+            <thead><tr><th>CÓDIGO</th><th>STATUS</th><th>URL</th></tr></thead>
+            <tbody>{codes.slice(0, 100).map((item) => <tr key={item.code}><td><strong>{item.code}</strong></td><td><span className={item.status === "active" ? "status ready" : "status"}>{codeStatusLabel(item.status)}</span></td><td className="date">{item.url}</td></tr>)}</tbody>
           </table>
+          {codes.length > 100 && <p className="muted">Mostrando os primeiros 100 de {codes.length.toLocaleString("pt-BR")} QRs. PDF e ZIP incluem todos.</p>}
         </article>
       )}
     </div>
