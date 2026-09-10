@@ -45,7 +45,13 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
     const body = await response.json().catch(() => ({ ok: false }));
     setLoading(false);
     if (!response.ok || !body.ok) {
-      setError(body.error === "invalid_name" ? "Informe nome e sobrenome." : body.error === "invalid_phone" ? "Informe um telefone válido." : "Não foi possível concluir o cadastro.");
+      setError(body.error === "invalid_name"
+        ? "Informe nome e sobrenome."
+        : body.error === "invalid_phone"
+          ? "Informe um telefone válido."
+          : body.error === "phone_already_registered"
+            ? "Número já existente nesta loja. Tente outro."
+            : "Não foi possível concluir o cadastro.");
       return;
     }
     setJoined(true);
