@@ -364,6 +364,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "strip@2x.png": stripImages.x2,
     "strip@3x.png": stripImages.x3,
   }, certificates);
+  pass.type = "storeCard";
 
   pass.secondaryFields.push({
     key: "customer",
