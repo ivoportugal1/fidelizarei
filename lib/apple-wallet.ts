@@ -306,7 +306,12 @@ function passJson(input: {
     webServiceURL: input.webServiceURL,
     authenticationToken: input.authenticationToken,
     sharingProhibited: false,
-    storeCard: input.storeCard,
+    storeCard: {
+      primaryFields: [],
+      secondaryFields: [],
+      auxiliaryFields: [],
+      backFields: [],
+    },
   };
 }
 
@@ -360,77 +365,77 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   });
   const backFields = [
     {
-      key: "status",
+      key: "back_status",
       label: "Status",
       value: completed ? "Recompensa disponível" : "Ativo",
     },
     {
-      key: "valid_until",
+      key: "back_valid_until",
       label: "Válido até",
       value: formatValidUntil(new Date(context.customer_created_at)),
     },
     {
-      key: "reward",
+      key: "back_reward",
       label: "Recompensa",
       value: settings.rewardText,
     },
     {
-      key: "customer",
+      key: "back_customer",
       label: "Cliente",
       value: customerName,
     },
     {
-      key: "member_since",
+      key: "back_member_since",
       label: "Membro desde",
       value: formatMemberSince(new Date(context.customer_created_at)),
     },
     {
-      key: "program_description",
+      key: "back_program_description",
       label: "Programa",
       value: settings.programDescription,
     },
     {
-      key: "rule",
+      key: "back_rule",
       label: "Como funciona",
       value: settings.accumulationText,
     },
     {
-      key: "progress",
+      key: "back_progress",
       label: "Progresso",
       value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
     },
     {
-      key: "rewards",
+      key: "back_rewards",
       label: "Recompensas disponíveis",
       value: String(context.rewards_available),
     },
     ...(settings.termsText ? [{
-      key: "terms",
+      key: "back_terms",
       label: "Termos e condições",
       value: settings.termsText,
     }] : []),
     ...(settings.addressText ? [{
-      key: "address",
+      key: "back_address",
       label: "Endereço",
       value: settings.addressText,
     }] : []),
     ...(settings.instagramUsername ? [{
-      key: "instagram",
+      key: "back_instagram",
       label: "Instagram",
       value: `@${settings.instagramUsername}`,
     }] : []),
     ...(settings.websiteUrl ? [{
-      key: "website",
+      key: "back_website",
       label: "Site",
       value: settings.websiteUrl,
     }] : []),
     ...(settings.contactPhone ? [{
-      key: "phone",
+      key: "back_phone",
       label: "Telefone",
       value: settings.contactPhone,
     }] : []),
     {
-      key: "powered_by",
+      key: "back_powered_by",
       label: "Powered by",
       value: "Fidelizarei",
     },
