@@ -306,12 +306,7 @@ function passJson(input: {
     webServiceURL: input.webServiceURL,
     authenticationToken: input.authenticationToken,
     sharingProhibited: false,
-    storeCard: {
-      primaryFields: [],
-      secondaryFields: [],
-      auxiliaryFields: [],
-      backFields: [],
-    },
+    storeCard: input.storeCard,
   };
 }
 
@@ -488,30 +483,6 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "strip@2x.png": stripImages.x2,
     "strip@3x.png": stripImages.x3,
   }, certificates);
-  pass.type = "storeCard";
-
-  pass.headerFields.push({
-    key: "stamps",
-    label: settings.progressLabel.toUpperCase(),
-    value: `${currentPoints}/${pointsGoal}`,
-  });
-  pass.primaryFields.push({
-    key: "program",
-    label: "PROGRAMA",
-    value: "Programa de fidelidade",
-  });
-  pass.secondaryFields.push({
-    key: "customer",
-    label: "CLIENTE",
-    value: shortField(displayName, 18),
-  });
-  pass.secondaryFields.push({
-    key: "status",
-    label: "STATUS",
-    value: completed ? "Recompensa disponível" : "Ativo",
-  });
-  pass.backFields.push(...backFields);
-
   await query(`
     insert into wallet_passes (customer_id, program_id, platform, serial_number, authentication_token, updated_at)
     values ($1, $2, 'apple', $3, $4, now())
