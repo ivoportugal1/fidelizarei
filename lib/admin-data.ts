@@ -1,4 +1,5 @@
 import { query } from "./database";
+import { listQrBatches, type QrBatchSummary } from "./qr-batches";
 import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 export type DashboardData = {
@@ -44,6 +45,7 @@ export type DashboardData = {
     points: number;
     createdAt: string;
   }>;
+  qrBatches: QrBatchSummary[];
 };
 
 type ContextRow = {
@@ -87,7 +89,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
     backgroundColor: row.pass_background_color,
   });
 
-  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings] = await Promise.all([
+  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings, qrBatches] = await Promise.all([
     query<{ count: string }>("select count(*) from customers where organization_id = $1 and status = 'active'", [row.organization_id]),
     query<{ total: string | null }>("select coalesce(sum(points_delta), 0) as total from point_transactions where organization_id = $1 and kind = 'earn'", [row.organization_id]),
     query<{ total: string | null }>(`
@@ -114,6 +116,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       order by t.created_at desc
       limit 12`, [row.organization_id]),
     getWalletCardSettings(row.organization_id, defaults, origin),
+    listQrBatches(row.organization_id, row.program_id),
   ]);
 
   return {
@@ -159,5 +162,6 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       points: Number(item.points_delta),
       createdAt: item.created_at.toISOString(),
     })),
+    qrBatches,
   };
 }
