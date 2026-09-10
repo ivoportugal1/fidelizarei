@@ -114,6 +114,18 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     window.location.href = "/login";
   }
 
+  async function confirmRewardRedeemed(customerId: string, customerName: string) {
+    if (!window.confirm(`Confirmar que ${customerName} resgatou a recompensa?`)) return;
+    const response = await fetch(`/api/customers/${customerId}/redeem-reward`, { method: "POST" });
+    const body = await response.json().catch(() => ({ ok: false }));
+    if (!response.ok || !body.ok) {
+      flash("Não consegui confirmar o resgate da recompensa.");
+      return;
+    }
+    flash("Recompensa marcada como resgatada.");
+    window.setTimeout(() => window.location.reload(), 700);
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -149,10 +161,10 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
 
         {active === "Visão geral" ? <Overview data={initialData} onGenerate={() => setShowGenerator(true)} /> :
           active === "QR Codes" ? <Codes data={initialData} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
-          active === "Clientes" ? <Customers data={initialData} /> :
+          active === "Clientes" ? <Customers data={initialData} onRedeemReward={confirmRewardRedeemed} /> :
           active === "Campanhas" ? <Campaigns data={initialData} /> :
           active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={flash} /> :
-          <Rewards data={initialData} />}
+          <Rewards data={initialData} onRedeemReward={confirmRewardRedeemed} />}
       </section>
 
       {showGenerator && (
@@ -205,16 +217,17 @@ function Codes({ data, codes, firstCode, onGenerate, onExport }: { data: Dashboa
   return <div className="content"><section className="section-intro"><div><div className="eyebrow">EMBALAGENS E PEDIDOS</div><h2>QR Codes</h2><p>Gere códigos únicos para imprimir ou inserir nos seus pedidos.</p></div><div className="top-actions"><button className="button button-light" disabled={!codes.length} onClick={onExport}>Exportar CSV</button><button className="button button-dark" onClick={onGenerate}>+ Gerar QR Codes</button></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.activeCodes)} label="Códigos disponíveis" trend="Antes desta tela" /><Metric value={formatNumber(data.metrics.redeemedCodes)} label="Códigos resgatados" trend="Uso único" /><Metric value={formatNumber(codes.length)} label="Gerados agora" trend="Exportáveis" /></section><article className="panel empty-qr"><QrPreview value={preview} /><div><h3>{codes.length ? "Primeiro QR gerado" : "Gere uma remessa"}</h3><p>{codes.length ? "Estes links só aparecem agora. Exporte o CSV antes de sair desta página." : "Os códigos são gravados no banco como hash e liberam pontos na tela pública de resgate."}</p>{firstCode && <a className="button button-light" href={firstCode} target="_blank">Abrir página de resgate →</a>}</div></article>{codes.length > 0 && <article className="panel activity code-list"><table><thead><tr><th>CÓDIGO</th><th>URL</th></tr></thead><tbody>{codes.slice(0, 20).map((item) => <tr key={item.code}><td><strong>{item.code}</strong></td><td className="date">{item.url}</td></tr>)}</tbody></table></article>}</div>;
 }
 
-function Customers({ data }: { data: DashboardData }) {
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por resgate de QR Code.</p></div></section><article className="panel activity"><table><thead><tr><th>CLIENTE</th><th>PONTOS</th><th>RECOMPENSAS</th><th>ÚLTIMA ATIVIDADE</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.rewards > 0 ? "status ready" : "status"}>{customer.rewards}</span></td><td className="date">{formatDate(customer.updatedAt)}</td></tr>) : <tr><td colSpan={4}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
+function Customers({ data, onRedeemReward }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void }) {
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por resgate de QR Code.</p></div></section><article className="panel activity"><table><thead><tr><th>CLIENTE</th><th>PONTOS</th><th>RECOMPENSAS</th><th>ÚLTIMA ATIVIDADE</th><th>AÇÃO</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.rewards > 0 ? "status ready" : "status"}>{customer.rewards}</span></td><td className="date">{formatDate(customer.updatedAt)}</td><td>{customer.rewards > 0 ? <button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button> : <span className="date">—</span>}</td></tr>) : <tr><td colSpan={5}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
 }
 
 function Campaigns({ data }: { data: DashboardData }) {
   return <div className="content"><section className="section-intro"><div><div className="eyebrow">CAMPANHA ATIVA</div><h2>{data.program.name}</h2><p>{data.program.pointsToReward} pontos liberam {data.program.rewardName}.</p></div></section><section className="metrics"><Metric value={String(data.program.pointsPerCode)} label="Ponto por QR" trend="Atual" /><Metric value={String(data.program.pointsToReward)} label="Meta" trend="Por recompensa" /><Metric value="Ativa" label="Status" trend="Recebendo resgates" /></section></div>;
 }
 
-function Rewards({ data }: { data: DashboardData }) {
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">RECOMPENSAS</div><h2>{data.program.rewardName}</h2><p>O saldo é calculado automaticamente quando o cliente atinge a meta de pontos.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section></div>;
+function Rewards({ data, onRedeemReward }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void }) {
+  const available = data.customers.filter((customer) => customer.rewards > 0);
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">RECOMPENSAS</div><h2>{data.program.rewardName}</h2><p>Quando o cliente retirar o prêmio na loja, confirme aqui para baixar a recompensa disponível.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section><article className="panel activity"><div className="panel-header"><div><h3>Clientes com recompensa disponível</h3><p>Confirme somente depois que o cliente receber o benefício.</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS ATUAIS</th><th>RECOMPENSAS</th><th>AÇÃO</th></tr></thead><tbody>{available.length ? available.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className="status ready">{customer.rewards}</span></td><td><button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button></td></tr>) : <tr><td colSpan={4}>Nenhuma recompensa disponível agora.</td></tr>}</tbody></table></article></div>;
 }
 
 function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message: string) => void }) {

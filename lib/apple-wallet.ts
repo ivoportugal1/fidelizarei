@@ -227,6 +227,37 @@ async function fetchPngAsset(url: string | null) {
   }
 }
 
+async function buildAppleLogoBadgeImages(logo: Buffer) {
+  const makeBadge = async (size: number) => {
+    const padding = Math.round(size * 0.18);
+    const logoSize = size - padding * 2;
+    const preparedLogo = await sharp(logo)
+      .resize(logoSize, logoSize, { fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer();
+    const circle = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fffdf4"/>
+    </svg>`);
+    return sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([
+        { input: circle, left: 0, top: 0 },
+        { input: preparedLogo, left: padding, top: padding },
+      ])
+      .png()
+      .toBuffer();
+  };
+
+  const [x1, x2, x3] = await Promise.all([makeBadge(80), makeBadge(160), makeBadge(240)]);
+  return { x1, x2, x3 };
+}
+
 function passJson(input: {
   serialNumber: string;
   organizationName: string;
@@ -248,7 +279,7 @@ function passJson(input: {
     serialNumber: input.serialNumber,
     organizationName: input.organizationName,
     description: input.description,
-    logoText: input.organizationName,
+    logoText: "",
     backgroundColor: input.backgroundColor,
     foregroundColor: input.foregroundColor,
     labelColor: input.labelColor,
@@ -306,6 +337,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const brandLogo = await getFallbackLogo();
   const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
   const coverImage = await fetchPngAsset(settings.coverUrl);
+  const logoBadge = await buildAppleLogoBadgeImages(merchantLogo);
   const stripImages = await buildAppleStripImages({
     settings,
     coverImage,
@@ -325,9 +357,9 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "icon.png": brandLogo,
     "icon@2x.png": brandLogo,
     "icon@3x.png": brandLogo,
-    "logo.png": merchantLogo,
-    "logo@2x.png": merchantLogo,
-    "logo@3x.png": merchantLogo,
+    "logo.png": logoBadge.x1,
+    "logo@2x.png": logoBadge.x2,
+    "logo@3x.png": logoBadge.x3,
     "strip.png": stripImages.x1,
     "strip@2x.png": stripImages.x2,
     "strip@3x.png": stripImages.x3,
