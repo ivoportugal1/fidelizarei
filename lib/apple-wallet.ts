@@ -280,6 +280,13 @@ function passJson(input: {
   labelColor: string;
   webServiceURL: string;
   authenticationToken: string;
+  storeCard: {
+    headerFields: Array<{ key: string; label: string; value: string }>;
+    primaryFields: Array<{ key: string; label: string; value: string }>;
+    secondaryFields: Array<{ key: string; label: string; value: string }>;
+    auxiliaryFields: Array<{ key: string; label: string; value: string }>;
+    backFields: Array<{ key: string; label: string; value: string }>;
+  };
 }) {
   const passTypeIdentifier = process.env.APPLE_PASS_TYPE_IDENTIFIER;
   const teamIdentifier = process.env.APPLE_TEAM_IDENTIFIER;
@@ -299,12 +306,7 @@ function passJson(input: {
     webServiceURL: input.webServiceURL,
     authenticationToken: input.authenticationToken,
     sharingProhibited: false,
-    storeCard: {
-      primaryFields: [],
-      secondaryFields: [],
-      auxiliaryFields: [],
-      backFields: [],
-    },
+    storeCard: input.storeCard,
   };
 }
 
@@ -356,6 +358,83 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     settings,
     coverImage,
   });
+  const backFields = [
+    {
+      key: "status",
+      label: "Status",
+      value: completed ? "Recompensa disponível" : "Ativo",
+    },
+    {
+      key: "valid_until",
+      label: "Válido até",
+      value: formatValidUntil(new Date(context.customer_created_at)),
+    },
+    {
+      key: "reward",
+      label: "Recompensa",
+      value: settings.rewardText,
+    },
+    {
+      key: "customer",
+      label: "Cliente",
+      value: customerName,
+    },
+    {
+      key: "member_since",
+      label: "Membro desde",
+      value: formatMemberSince(new Date(context.customer_created_at)),
+    },
+    {
+      key: "program",
+      label: "Programa",
+      value: settings.programDescription,
+    },
+    {
+      key: "rule",
+      label: "Como funciona",
+      value: settings.accumulationText,
+    },
+    {
+      key: "progress",
+      label: "Progresso",
+      value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
+    },
+    {
+      key: "rewards",
+      label: "Recompensas disponíveis",
+      value: String(context.rewards_available),
+    },
+    ...(settings.termsText ? [{
+      key: "terms",
+      label: "Termos e condições",
+      value: settings.termsText,
+    }] : []),
+    ...(settings.addressText ? [{
+      key: "address",
+      label: "Endereço",
+      value: settings.addressText,
+    }] : []),
+    ...(settings.instagramUsername ? [{
+      key: "instagram",
+      label: "Instagram",
+      value: `@${settings.instagramUsername}`,
+    }] : []),
+    ...(settings.websiteUrl ? [{
+      key: "website",
+      label: "Site",
+      value: settings.websiteUrl,
+    }] : []),
+    ...(settings.contactPhone ? [{
+      key: "phone",
+      label: "Telefone",
+      value: settings.contactPhone,
+    }] : []),
+    {
+      key: "powered_by",
+      label: "Powered by",
+      value: "Fidelizarei",
+    },
+  ];
 
   const pass = new PKPass({
     "pass.json": Buffer.from(JSON.stringify(passJson({
@@ -367,6 +446,32 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       labelColor: hexToRgb(settings.secondaryColor),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
+      storeCard: {
+        headerFields: [{
+          key: "stamps",
+          label: settings.progressLabel.toUpperCase(),
+          value: `${currentPoints}/${pointsGoal}`,
+        }],
+        primaryFields: [{
+          key: "program",
+          label: "PROGRAMA",
+          value: "Programa de fidelidade",
+        }],
+        secondaryFields: [
+          {
+            key: "customer",
+            label: "CLIENTE",
+            value: shortField(displayName, 18),
+          },
+          {
+            key: "status",
+            label: "STATUS",
+            value: completed ? "Recompensa disponível" : "Ativo",
+          },
+        ],
+        auxiliaryFields: [],
+        backFields,
+      },
     }))),
     "icon.png": appIcons.x1,
     "icon@2x.png": appIcons.x2,
@@ -378,113 +483,6 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "strip@2x.png": stripImages.x2,
     "strip@3x.png": stripImages.x3,
   }, certificates);
-  pass.type = "storeCard";
-
-  pass.primaryFields.push({
-    key: "program",
-    label: "PROGRAMA",
-    value: "Programa de fidelidade",
-  });
-  pass.secondaryFields.push({
-    key: "customer",
-    label: "CLIENTE",
-    value: shortField(displayName, 18),
-  });
-  pass.secondaryFields.push({
-    key: "status",
-    label: "STATUS",
-    value: completed ? "Recompensa disponível" : "Ativo",
-  });
-  pass.headerFields.push({
-    key: "stamps",
-    label: settings.progressLabel.toUpperCase(),
-    value: `${currentPoints}/${pointsGoal}`,
-  });
-  pass.backFields.push({
-    key: "status",
-    label: "Status",
-    value: completed ? "Recompensa disponível" : "Ativo",
-  });
-  pass.backFields.push({
-    key: "valid_until",
-    label: "Válido até",
-    value: formatValidUntil(new Date(context.customer_created_at)),
-  });
-  pass.backFields.push({
-    key: "reward",
-    label: "Recompensa",
-    value: settings.rewardText,
-  });
-  pass.backFields.push({
-    key: "customer",
-    label: "Cliente",
-    value: customerName,
-  });
-  pass.backFields.push({
-    key: "member_since",
-    label: "Membro desde",
-    value: formatMemberSince(new Date(context.customer_created_at)),
-  });
-  pass.backFields.push({
-    key: "program",
-    label: "Programa",
-    value: settings.programDescription,
-  });
-  pass.backFields.push({
-    key: "rule",
-    label: "Como funciona",
-    value: settings.accumulationText,
-  });
-  pass.backFields.push({
-    key: "progress",
-    label: "Progresso",
-    value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
-  });
-  pass.backFields.push({
-    key: "rewards",
-    label: "Recompensas disponíveis",
-    value: String(context.rewards_available),
-  });
-  if (settings.termsText) {
-    pass.backFields.push({
-      key: "terms",
-      label: "Termos e condições",
-      value: settings.termsText,
-    });
-  }
-  if (settings.addressText) {
-    pass.backFields.push({
-      key: "address",
-      label: "Endereço",
-      value: settings.addressText,
-    });
-  }
-  if (settings.instagramUsername) {
-    pass.backFields.push({
-      key: "instagram",
-      label: "Instagram",
-      value: `@${settings.instagramUsername}`,
-    });
-  }
-  if (settings.websiteUrl) {
-    pass.backFields.push({
-      key: "website",
-      label: "Site",
-      value: settings.websiteUrl,
-    });
-  }
-  if (settings.contactPhone) {
-    pass.backFields.push({
-      key: "phone",
-      label: "Telefone",
-      value: settings.contactPhone,
-    });
-  }
-  pass.backFields.push({
-    key: "powered_by",
-    label: "Powered by",
-    value: "Fidelizarei",
-  });
 
   await query(`
     insert into wallet_passes (customer_id, program_id, platform, serial_number, authentication_token, updated_at)

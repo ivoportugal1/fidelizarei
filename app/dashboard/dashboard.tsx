@@ -83,12 +83,19 @@ async function printQr(value: string, title: string) {
 
 export default function Dashboard({ initialData }: { initialData: DashboardData }) {
   const [active, setActive] = useState("Visão geral");
+  const [currentDateLabel, setCurrentDateLabel] = useState("FIDELIZAREI");
+  const [baseUrl, setBaseUrl] = useState("https://fidelizarei.vercel.app");
   const [quantity, setQuantity] = useState(25);
   const [showGenerator, setShowGenerator] = useState(false);
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(false);
   const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>([]);
   const firstCode = generatedCodes[0]?.url;
+
+  useEffect(() => {
+    setCurrentDateLabel(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase());
+    setBaseUrl(window.location.origin);
+  }, []);
 
   const flash = (message: string) => {
     setToast(message);
@@ -183,12 +190,12 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
       <section className="workspace">
         <TrialBanner data={initialData} />
         <header className="topbar">
-          <div><p>{new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase()}</p><h1>{active}</h1></div>
+          <div><p>{currentDateLabel}</p><h1>{active}</h1></div>
           <div className="top-actions"><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
         </header>
 
         {active === "Visão geral" ? <Overview data={initialData} onGenerate={() => setShowGenerator(true)} /> :
-          active === "QR Codes" ? <Codes data={initialData} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
+          active === "QR Codes" ? <Codes data={initialData} baseUrl={baseUrl} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
           active === "Clientes" ? <Customers data={initialData} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
           active === "Campanhas" ? <Campaigns data={initialData} /> :
           active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={flash} /> :
@@ -240,9 +247,8 @@ function RecentActivity({ data }: { data: DashboardData }) {
   return <section className="panel activity"><div className="panel-header"><div><h3>Atividade recente</h3><p>Últimos pontos creditados</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS</th><th>QUANDO</th></tr></thead><tbody>{data.recent.length ? data.recent.map((item) => <tr key={item.id}><td><span className="avatar">{initials(item.customerName)}</span><b>{item.customerName}</b></td><td><strong className="points">+{item.points}</strong></td><td className="date">{formatDate(item.createdAt)}</td></tr>) : <tr><td colSpan={3}>Nenhum resgate ainda. Gere uma remessa e teste um QR Code.</td></tr>}</tbody></table></section>;
 }
 
-function Codes({ data, codes, firstCode, onGenerate, onExport }: { data: DashboardData; codes: GeneratedCode[]; firstCode?: string; onGenerate: () => void; onExport: () => void }) {
+function Codes({ data, baseUrl, codes, firstCode, onGenerate, onExport }: { data: DashboardData; baseUrl: string; codes: GeneratedCode[]; firstCode?: string; onGenerate: () => void; onExport: () => void }) {
   const preview = firstCode || "https://fidelizarei.vercel.app/r/GERADO-APOS-CLIQUE";
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://fidelizarei.vercel.app";
   const joinUrl = `${baseUrl}/join/${data.program.id}`;
   return (
     <div className="content">
