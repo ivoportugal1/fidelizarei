@@ -262,7 +262,7 @@ async function buildAppleStripImages(input: {
   const height = 369;
   const cardGreen = settings.primaryColor || "#06420D";
   const accent = settings.secondaryColor || "#14E28B";
-  const foreground = readableOn(cardGreen);
+  const foreground = settings.textColor || readableOn(cardGreen);
   const theme = normalizedProgressTheme(settings.pointTheme);
   const total = Math.max(1, Math.min(pointsGoal, 20));
   const earned = Math.max(0, Math.min(currentPoints, total));
@@ -539,7 +539,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       organizationName: settings.businessName,
       description: settings.programDescription,
       backgroundColor: hexToRgb(settings.primaryColor),
-      foregroundColor: hexToRgb(readableOn(settings.primaryColor)),
+      foregroundColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
       labelColor: hexToRgb(settings.secondaryColor),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
