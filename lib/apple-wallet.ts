@@ -270,11 +270,10 @@ async function buildAppleStripImages(input: {
   const iconSize = Math.floor(Math.min(86, (width - 160 - iconGap * (total - 1)) / total));
   const progressWidth = iconSize * total + iconGap * (total - 1);
   const startX = Math.round((width - progressWidth) / 2);
-  const startY = 188;
+  const startY = Math.round((height - iconSize) / 2);
   const iconColor = accent;
   const unearnedColor = foreground;
   const iconTextColor = readableOn(accent);
-  const progressLabel = `${Math.min(currentPoints, pointsGoal)}/${pointsGoal} ${settings.progressLabel}`;
   const icons = Array.from({ length: total }).map((_, index) => progressIconSvg({
     theme,
     index,
@@ -302,9 +301,6 @@ async function buildAppleStripImages(input: {
     <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
     <rect width="${width}" height="${height}" rx="38" fill="url(#glow)" opacity=".95"/>
     <rect x="42" y="42" width="${width - 84}" height="${height - 84}" rx="34" fill="#000000" opacity=".10"/>
-    <text x="80" y="100" font-family="Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="7" fill="${foreground}" opacity=".82">${xmlEscape("PROGRESSO")}</text>
-    <text x="80" y="158" font-family="Arial, sans-serif" font-size="54" font-weight="800" fill="${foreground}">${xmlEscape(progressLabel)}</text>
-    <text x="${width - 80}" y="158" text-anchor="end" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="${foreground}" opacity=".76">${xmlEscape(settings.rewardText)}</text>
     ${icons}
   </svg>`;
 
