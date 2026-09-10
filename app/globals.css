@@ -91,6 +91,8 @@
 .link-button.danger { color:#a23b31; font-weight:800; }
 .qr-split { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:stretch; margin-bottom:18px; }
 .qr-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.button.disabled, .button:disabled { opacity:.45; pointer-events:none; cursor:not-allowed; }
+.table-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 
 @media (max-width:600px) {
   .platform-admin { overflow-x:hidden; }
