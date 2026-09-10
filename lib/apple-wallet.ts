@@ -287,20 +287,6 @@ async function buildAppleStripImages(input: {
   })).join("");
 
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="${cardGreen}"/>
-        <stop offset=".48" stop-color="#073B13"/>
-        <stop offset="1" stop-color="#031B0A"/>
-      </linearGradient>
-      <radialGradient id="glow" cx=".74" cy=".2" r=".7">
-        <stop offset="0" stop-color="${accent}" stop-opacity=".32"/>
-        <stop offset="1" stop-color="${accent}" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="${width}" height="${height}" rx="38" fill="url(#brand)"/>
-    <rect width="${width}" height="${height}" rx="38" fill="url(#glow)" opacity=".95"/>
-    <rect x="42" y="42" width="${width - 84}" height="${height - 84}" rx="34" fill="#000000" opacity=".10"/>
     ${icons}
   </svg>`;
 
