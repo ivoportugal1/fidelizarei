@@ -82,6 +82,7 @@ async function printQr(value: string, title: string) {
 }
 
 export default function Dashboard({ initialData }: { initialData: DashboardData }) {
+  const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState("Visão geral");
   const [currentDateLabel, setCurrentDateLabel] = useState("FIDELIZAREI");
   const [baseUrl, setBaseUrl] = useState("https://fidelizarei.vercel.app");
@@ -93,6 +94,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   const firstCode = generatedCodes[0]?.url;
 
   useEffect(() => {
+    setMounted(true);
     setCurrentDateLabel(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase());
     setBaseUrl(window.location.origin);
   }, []);
@@ -160,6 +162,8 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     flash("Cliente removido deste programa.");
     window.setTimeout(() => window.location.reload(), 700);
   }
+
+  if (!mounted) return null;
 
   return (
     <main className="app-shell">
