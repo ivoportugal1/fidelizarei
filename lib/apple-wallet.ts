@@ -299,7 +299,6 @@ function passJson(input: {
     serialNumber: input.serialNumber,
     organizationName: input.organizationName,
     description: input.description,
-    logoText: "",
     backgroundColor: input.backgroundColor,
     foregroundColor: input.foregroundColor,
     labelColor: input.labelColor,
