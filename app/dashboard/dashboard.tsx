@@ -601,7 +601,13 @@ function PointIcon({ theme }: { theme: PointTheme }) {
 
 function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
   const completed = points >= settings.pointsGoal;
-  return <div className="apple-pass apple-pass-simple" style={{ backgroundColor: settings.primaryColor, color: "#fff" }}>
+  return <div className="apple-pass apple-pass-simple" style={{
+    "--apple-primary": settings.primaryColor,
+    "--apple-secondary": settings.secondaryColor,
+    "--apple-text": settings.textColor,
+    backgroundColor: settings.primaryColor,
+    color: settings.textColor,
+  } as CSSProperties}>
     <div className="apple-simple-head">
       <div className="apple-simple-brand">
         <span>{settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" /> : initials(settings.businessName)}</span>
