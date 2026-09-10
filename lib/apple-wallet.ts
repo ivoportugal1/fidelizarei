@@ -337,31 +337,41 @@ async function fetchPngAsset(url: string | null) {
 
 async function buildAppleLogoBadgeImages(logo: Buffer) {
   const makeBadge = async (scale: number) => {
-    const width = 160 * scale;
-    const height = 50 * scale;
-    const paddingX = 10 * scale;
-    const paddingY = 7 * scale;
+    const size = 62 * scale;
+    const safe = Math.round(size * 0.88);
     const preparedLogo = await sharp(logo)
-      .resize(width - paddingX * 2, height - paddingY * 2, { fit: "inside", withoutEnlargement: true })
+      .resize(safe, safe, { fit: "cover", position: "center" })
       .png()
       .toBuffer();
-    const metadata = await sharp(preparedLogo).metadata();
-    const logoWidth = metadata.width ?? width - paddingX * 2;
-    const logoHeight = metadata.height ?? height - paddingY * 2;
-    const badge = Buffer.from(`<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="${width}" height="${height}" rx="${height / 2}" fill="#fffdf4"/>
+    const circle = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fffdf4"/>
     </svg>`);
+    const mask = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fff"/>
+    </svg>`);
+    const fittedLogo = await sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([{ input: preparedLogo, left: Math.round((size - safe) / 2), top: Math.round((size - safe) / 2) }])
+      .composite([{ input: mask, blend: "dest-in" }])
+      .png()
+      .toBuffer();
     return sharp({
       create: {
-        width,
-        height,
+        width: size,
+        height: size,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
     })
       .composite([
-        { input: badge, left: 0, top: 0 },
-        { input: preparedLogo, left: Math.round((width - logoWidth) / 2), top: Math.round((height - logoHeight) / 2) },
+        { input: circle, left: 0, top: 0 },
+        { input: fittedLogo, left: 0, top: 0 },
       ])
       .png()
       .toBuffer();
