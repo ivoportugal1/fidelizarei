@@ -169,7 +169,7 @@ async function buildAppleStripImages(input: {
 }) {
   const { settings, coverImage } = input;
   const width = 1125;
-  const height = 432;
+  const height = 369;
   const coverData = coverImage ? `data:image/png;base64,${coverImage.toString("base64")}` : "";
   const cardGreen = settings.primaryColor || "#06420D";
   const accent = settings.secondaryColor || "#14E28B";
@@ -194,9 +194,9 @@ async function buildAppleStripImages(input: {
 
   const source = Buffer.from(svg);
   const [x1, x2, x3] = await Promise.all([
-    sharp(source).resize(375, 144, { fit: "cover" }).png().toBuffer(),
-    sharp(source).resize(750, 288, { fit: "cover" }).png().toBuffer(),
-    sharp(source).resize(1125, 432, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(375, 123, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(750, 246, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(1125, 369, { fit: "cover" }).png().toBuffer(),
   ]);
   return { x1, x2, x3 };
 }
@@ -209,6 +209,16 @@ function passAuthToken(serialNumber: string) {
 
 async function getFallbackLogo() {
   return readFile(path.join(process.cwd(), "public", "logo-fidelizarei-transparent.png"));
+}
+
+async function buildAppleIconImages(logo: Buffer) {
+  const makeIcon = async (size: number) => sharp(logo)
+    .resize(size, size, { fit: "contain", background: { r: 255, g: 253, b: 244, alpha: 1 } })
+    .png()
+    .toBuffer();
+
+  const [x1, x2, x3] = await Promise.all([makeIcon(29), makeIcon(58), makeIcon(87)]);
+  return { x1, x2, x3 };
 }
 
 async function fetchPngAsset(url: string | null) {
@@ -228,20 +238,23 @@ async function fetchPngAsset(url: string | null) {
 }
 
 async function buildAppleLogoBadgeImages(logo: Buffer) {
-  const makeBadge = async (size: number) => {
-    const padding = Math.round(size * 0.18);
-    const logoSize = size - padding * 2;
+  const makeBadge = async (scale: number) => {
+    const width = 160 * scale;
+    const height = 50 * scale;
+    const badgeSize = 50 * scale;
+    const padding = Math.round(badgeSize * 0.18);
+    const logoSize = badgeSize - padding * 2;
     const preparedLogo = await sharp(logo)
       .resize(logoSize, logoSize, { fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
-    const circle = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fffdf4"/>
+    const circle = Buffer.from(`<svg width="${badgeSize}" height="${badgeSize}" viewBox="0 0 ${badgeSize} ${badgeSize}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${badgeSize / 2}" cy="${badgeSize / 2}" r="${badgeSize / 2}" fill="#fffdf4"/>
     </svg>`);
     return sharp({
       create: {
-        width: size,
-        height: size,
+        width,
+        height,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
@@ -254,7 +267,7 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
       .toBuffer();
   };
 
-  const [x1, x2, x3] = await Promise.all([makeBadge(80), makeBadge(160), makeBadge(240)]);
+  const [x1, x2, x3] = await Promise.all([makeBadge(1), makeBadge(2), makeBadge(3)]);
   return { x1, x2, x3 };
 }
 
@@ -337,6 +350,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const brandLogo = await getFallbackLogo();
   const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
   const coverImage = await fetchPngAsset(settings.coverUrl);
+  const appIcons = await buildAppleIconImages(brandLogo);
   const logoBadge = await buildAppleLogoBadgeImages(merchantLogo);
   const stripImages = await buildAppleStripImages({
     settings,
@@ -354,9 +368,9 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
     }))),
-    "icon.png": brandLogo,
-    "icon@2x.png": brandLogo,
-    "icon@3x.png": brandLogo,
+    "icon.png": appIcons.x1,
+    "icon@2x.png": appIcons.x2,
+    "icon@3x.png": appIcons.x3,
     "logo.png": logoBadge.x1,
     "logo@2x.png": logoBadge.x2,
     "logo@3x.png": logoBadge.x3,
@@ -366,6 +380,11 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   }, certificates);
   pass.type = "storeCard";
 
+  pass.primaryFields.push({
+    key: "program",
+    label: "PROGRAMA",
+    value: "Programa de fidelidade",
+  });
   pass.secondaryFields.push({
     key: "customer",
     label: "CLIENTE",
