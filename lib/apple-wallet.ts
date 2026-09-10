@@ -385,7 +385,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       value: formatMemberSince(new Date(context.customer_created_at)),
     },
     {
-      key: "program",
+      key: "program_description",
       label: "Programa",
       value: settings.programDescription,
     },
