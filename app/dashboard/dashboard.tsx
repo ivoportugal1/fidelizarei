@@ -82,6 +82,7 @@ async function printQr(value: string, title: string) {
 }
 
 export default function Dashboard({ initialData }: { initialData: DashboardData }) {
+  const [data, setData] = useState(initialData);
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState("Visão geral");
   const [currentDateLabel, setCurrentDateLabel] = useState("FIDELIZAREI");
@@ -171,13 +172,13 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         <a className="brand" href="/">fideliza<span>.</span></a>
         <div className="company-switcher">
           <div className="company-logo">
-            {initialData.walletSettings.logoUrl ? (
-              <img src={initialData.walletSettings.logoUrl} alt={`Logo ${initialData.organization.name}`} />
+            {data.walletSettings.logoUrl ? (
+              <img src={data.walletSettings.logoUrl} alt={`Logo ${data.organization.name}`} />
             ) : (
-              initialData.organization.name[0]
+              data.organization.name[0]
             )}
           </div>
-          <div><strong>{initialData.organization.name}</strong><small>Plano {planLabel(initialData.organization.billingInterval)}</small></div>
+          <div><strong>{data.organization.name}</strong><small>Plano {planLabel(data.organization.billingInterval)}</small></div>
         </div>
         <nav>
           {["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão"].map((item) => (
@@ -187,23 +188,23 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <button className="profile" onClick={logout}><span>{initials(initialData.user.name)}</span><b>Sair</b><i>↗</i></button>
+          <button className="profile" onClick={logout}><span>{initials(data.user.name)}</span><b>Sair</b><i>↗</i></button>
         </div>
       </aside>
 
       <section className="workspace">
-        <TrialBanner data={initialData} />
+        <TrialBanner data={data} />
         <header className="topbar">
           <div><p>{currentDateLabel}</p><h1>{active}</h1></div>
           <div className="top-actions"><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
         </header>
 
-        {active === "Visão geral" ? <Overview data={initialData} onGenerate={() => setShowGenerator(true)} /> :
-          active === "QR Codes" ? <Codes data={initialData} baseUrl={baseUrl} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
-          active === "Clientes" ? <Customers data={initialData} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
-          active === "Campanhas" ? <Campaigns data={initialData} /> :
-          active === "Personalizar cartão" ? <CardDesigner data={initialData} onSave={flash} /> :
-          <Rewards data={initialData} onRedeemReward={confirmRewardRedeemed} />}
+        {active === "Visão geral" ? <Overview data={data} onGenerate={() => setShowGenerator(true)} /> :
+          active === "QR Codes" ? <Codes data={data} baseUrl={baseUrl} codes={generatedCodes} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} /> :
+          active === "Clientes" ? <Customers data={data} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
+          active === "Campanhas" ? <Campaigns data={data} /> :
+          active === "Personalizar cartão" ? <CardDesigner data={data} onSave={flash} onSettingsChange={(walletSettings) => setData((current) => ({ ...current, walletSettings }))} /> :
+          <Rewards data={data} onRedeemReward={confirmRewardRedeemed} />}
       </section>
 
       {showGenerator && (
@@ -212,7 +213,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
             <button className="modal-close" onClick={() => setShowGenerator(false)}>×</button>
             <p className="eyebrow">NOVA REMESSA</p>
             <h2>Gerar QR Codes</h2>
-            <p className="muted">Cada código é único, vale {initialData.program.pointsPerCode} ponto e só pode ser usado uma vez.</p>
+            <p className="muted">Cada código é único, vale {data.program.pointsPerCode} ponto e só pode ser usado uma vez.</p>
             <label>Quantidade<input type="number" min="1" max="500" value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
             <button className="button button-coral modal-submit" disabled={loading} onClick={generateCodes}>{loading ? "Gerando..." : `Gerar ${quantity.toLocaleString("pt-BR")} códigos`}</button>
           </section>
@@ -331,7 +332,15 @@ function Rewards({ data, onRedeemReward }: { data: DashboardData; onRedeemReward
   return <div className="content"><section className="section-intro"><div><div className="eyebrow">RECOMPENSAS</div><h2>{data.program.rewardName}</h2><p>Quando o cliente retirar o prêmio na loja, confirme aqui para baixar a recompensa disponível.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section><article className="panel activity"><div className="panel-header"><div><h3>Clientes com recompensa disponível</h3><p>Confirme somente depois que o cliente receber o benefício.</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS ATUAIS</th><th>RECOMPENSAS</th><th>AÇÃO</th></tr></thead><tbody>{available.length ? available.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className="status ready">{customer.rewards}</span></td><td><button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button></td></tr>) : <tr><td colSpan={4}>Nenhuma recompensa disponível agora.</td></tr>}</tbody></table></article></div>;
 }
 
-function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message: string) => void }) {
+function CardDesigner({
+  data,
+  onSave,
+  onSettingsChange,
+}: {
+  data: DashboardData;
+  onSave: (message: string) => void;
+  onSettingsChange: (settings: WalletSettings) => void;
+}) {
   const [settings, setSettings] = useState<WalletSettings>({
     ...data.walletSettings,
     logoUrl: normalizeAssetUrl(data.walletSettings.logoUrl),
@@ -358,7 +367,13 @@ function CardDesigner({ data, onSave }: { data: DashboardData; onSave: (message:
         onSave("Não consegui salvar. Rode a migração do banco e tente de novo.");
         return false;
       }
-      setSettings(body.settings);
+      const savedSettings = {
+        ...body.settings,
+        logoUrl: normalizeAssetUrl(body.settings.logoUrl),
+        coverUrl: normalizeAssetUrl(body.settings.coverUrl),
+      } as WalletSettings;
+      setSettings(savedSettings);
+      onSettingsChange(savedSettings);
       onSave(successMessage);
       return true;
     } catch {
@@ -538,3 +553,4 @@ function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; p
 function PoweredBy() {
   return <div className="powered-by"><span>Powered by</span><img src="/logo-fidelizarei-transparent.png" alt="fidelizarei" /></div>;
 }
+
