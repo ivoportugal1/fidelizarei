@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminSession, hashPassword, setAdminCookie } from "@/lib/auth";
 import { isTrialCouponValid } from "@/lib/billing";
 import { query } from "@/lib/database";
+import { ensureOrganizationSchema } from "@/lib/organization-schema";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
     businessName?: string;
     ownerName?: string;
     taxId?: string;
+    salespersonName?: string;
     email?: string;
     password?: string;
     billingInterval?: "monthly" | "yearly";
@@ -39,6 +41,7 @@ export async function POST(request: Request) {
   const businessName = body.businessName?.trim();
   const ownerName = body.ownerName?.trim();
   const taxId = body.taxId?.replace(/\D/g, "") || "";
+  const salespersonName = body.salespersonName?.trim().slice(0, 120) || null;
   const email = body.email?.trim().toLowerCase();
   const password = body.password ?? "";
   const billingInterval = body.billingInterval === "yearly" ? "yearly" : "monthly";
@@ -58,18 +61,19 @@ export async function POST(request: Request) {
   }
 
   const slug = await uniqueSlug(slugify(businessName));
+  await ensureOrganizationSchema();
   const org = await query<{ id: string }>(`
     insert into organizations (
       name, slug, tax_id, plan, subscription_status, trial_started_at, trial_ends_at,
-      subscription_billing_interval, subscription_coupon_code
+      subscription_billing_interval, subscription_coupon_code, salesperson_name
     )
     values (
       $1, $2, $3, 'starter', $4,
       case when $4 = 'trialing' then now() else null end,
       case when $4 = 'trialing' then now() + interval '30 days' else null end,
-      $5, $6
+      $5, $6, $7
     )
-    returning id`, [businessName, slug, taxId, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null]);
+    returning id`, [businessName, slug, taxId, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null, salespersonName]);
 
   const user = await query<{ id: string }>(`
     insert into app_users (email, password_hash, full_name)
