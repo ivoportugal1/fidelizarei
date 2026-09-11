@@ -336,41 +336,54 @@ async function fetchPngAsset(url: string | null) {
 }
 
 async function buildAppleLogoBadgeImages(logo: Buffer) {
+  const metadata = await sharp(logo).metadata();
+  const ratio = metadata.width && metadata.height ? metadata.width / metadata.height : 1;
+  const transparentCorners = await hasTransparentCorners(logo);
+  const shape = ratio >= 1.45 ? "pill" : transparentCorners ? "circle" : "rounded";
+
   const makeBadge = async (scale: number) => {
-    const size = 62 * scale;
-    const safe = Math.round(size * 0.88);
+    const badgeWidth = (shape === "pill" ? 160 : 62) * scale;
+    const badgeHeight = 62 * scale;
+    const insetX = (shape === "pill" ? 14 : 6) * scale;
+    const insetY = 6 * scale;
+    const safeWidth = Math.max(1, Math.round(badgeWidth - insetX * 2));
+    const safeHeight = Math.max(1, Math.round(badgeHeight - insetY * 2));
+    const radius = shape === "circle" ? badgeHeight / 2 : shape === "pill" ? badgeHeight / 2 : 15 * scale;
     const preparedLogo = await sharp(logo)
-      .resize(safe, safe, { fit: "cover", position: "center" })
+      .resize(safeWidth, safeHeight, { fit: "inside", position: "center" })
       .png()
       .toBuffer();
-    const circle = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fffdf4"/>
+    const preparedMeta = await sharp(preparedLogo).metadata();
+    const logoWidth = preparedMeta.width ?? safeWidth;
+    const logoHeight = preparedMeta.height ?? safeHeight;
+    const badge = Buffer.from(`<svg width="${badgeWidth}" height="${badgeHeight}" viewBox="0 0 ${badgeWidth} ${badgeHeight}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${badgeWidth}" height="${badgeHeight}" rx="${radius}" fill="#fffdf4"/>
     </svg>`);
-    const mask = Buffer.from(`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="#fff"/>
+    const mask = Buffer.from(`<svg width="${badgeWidth}" height="${badgeHeight}" viewBox="0 0 ${badgeWidth} ${badgeHeight}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${badgeWidth}" height="${badgeHeight}" rx="${radius}" fill="#fff"/>
     </svg>`);
     const fittedLogo = await sharp({
       create: {
-        width: size,
-        height: size,
+        width: badgeWidth,
+        height: badgeHeight,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
     })
-      .composite([{ input: preparedLogo, left: Math.round((size - safe) / 2), top: Math.round((size - safe) / 2) }])
+      .composite([{ input: preparedLogo, left: Math.round((badgeWidth - logoWidth) / 2), top: Math.round((badgeHeight - logoHeight) / 2) }])
       .composite([{ input: mask, blend: "dest-in" }])
       .png()
       .toBuffer();
     return sharp({
       create: {
-        width: size,
-        height: size,
+        width: badgeWidth,
+        height: badgeHeight,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
     })
       .composite([
-        { input: circle, left: 0, top: 0 },
+        { input: badge, left: 0, top: 0 },
         { input: fittedLogo, left: 0, top: 0 },
       ])
       .png()
@@ -379,6 +392,27 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
 
   const [x1, x2, x3] = await Promise.all([makeBadge(1), makeBadge(2), makeBadge(3)]);
   return { x1, x2, x3 };
+}
+
+async function hasTransparentCorners(logo: Buffer) {
+  try {
+    const size = 24;
+    const pixels = await sharp(logo)
+      .ensureAlpha()
+      .resize(size, size, { fit: "fill" })
+      .raw()
+      .toBuffer();
+    const cornerIndexes = [
+      [0, 0],
+      [size - 1, 0],
+      [0, size - 1],
+      [size - 1, size - 1],
+    ];
+    const alphaValues = cornerIndexes.map(([x, y]) => pixels[(y * size + x) * 4 + 3] ?? 255);
+    return alphaValues.some((alpha) => alpha < 220);
+  } catch {
+    return false;
+  }
 }
 
 function passJson(input: {
