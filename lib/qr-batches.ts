@@ -92,16 +92,18 @@ export function publicCodeUrl(origin: string, code: string) {
   return `${origin}/r/${code}`;
 }
 
-export async function getUserProgramContext(userId: string) {
+export async function getUserProgramContext(userId: string, programId?: string | null) {
   await ensureQrBatchSchema();
   const context = await query<UserProgramContext>(`
     select o.id as organization_id, p.id as program_id, p.points_per_code
     from organization_members m
     join organizations o on o.id = m.organization_id
     join loyalty_programs p on p.organization_id = o.id
-    where m.user_id = $1 and p.active = true
+    where m.user_id = $1
+      and p.active = true
+      and ($2::uuid is null or p.id = $2::uuid)
     order by o.created_at asc, p.created_at asc
-    limit 1`, [userId]);
+    limit 1`, [userId, programId || null]);
   return context.rows[0] ?? null;
 }
 
@@ -129,13 +131,12 @@ export async function listQrBatches(organizationId: string, programId: string, l
 
 export async function getQrBatchCodes(userId: string, batchId: string, origin: string): Promise<QrCodeItem[] | null> {
   await ensureQrBatchSchema();
-  const context = await getUserProgramContext(userId);
-  if (!context) return null;
-
   const batch = await query<{ id: string }>(`
-    select id from qr_code_batches
-    where id = $1 and organization_id = $2 and program_id = $3
-    limit 1`, [batchId, context.organization_id, context.program_id]);
+    select b.id
+    from qr_code_batches b
+    join organization_members m on m.organization_id = b.organization_id
+    where b.id = $1 and m.user_id = $2
+    limit 1`, [batchId, userId]);
   if (!batch.rows[0]) return null;
 
   const result = await query<CodeRow>(`
