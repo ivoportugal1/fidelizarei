@@ -1,4 +1,4 @@
-# Fideliza
+# Fidelizarei
 
 MVP de fidelidade por QR Code: a empresa cria uma campanha e QR Codes únicos; o cliente aponta a câmera, ganha o ponto e acompanha o saldo em Apple Wallet ou Google Wallet — sem instalar aplicativo.
 
