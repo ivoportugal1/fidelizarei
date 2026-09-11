@@ -73,8 +73,12 @@
 .apple-pass-simple { background:var(--apple-primary); color:var(--apple-text); border-color:color-mix(in srgb, var(--apple-primary) 78%, #000); }
 .apple-simple-head { display:grid; grid-template-columns:1fr auto; align-items:center; gap:16px; padding:20px 24px; background:color-mix(in srgb, currentColor 0%, transparent); }
 .apple-simple-brand { min-width:0; display:flex; align-items:center; gap:13px; }
-.apple-simple-brand span { width:62px; height:62px; border-radius:50%; display:grid; place-items:center; overflow:hidden; background:#f8f3e8; color:#173d20; font:800 14px var(--mono); flex:none; padding:0; }
-.apple-simple-brand img { width:88%; height:88%; object-fit:cover; border-radius:50%; }
+.apple-logo-frame { height:62px; display:grid; place-items:center; overflow:hidden; background:#fffdf4; color:#173d20; font:800 14px var(--mono); flex:none; transition:width .18s ease, border-radius .18s ease; }
+.apple-logo-circle { width:62px; border-radius:50%; padding:0; }
+.apple-logo-rounded { width:62px; border-radius:15px; padding:6px; }
+.apple-logo-pill { width:160px; max-width:38vw; border-radius:999px; padding:6px 14px; }
+.apple-logo-frame img { width:100%; height:100%; object-fit:contain; display:block; }
+.apple-logo-circle img { width:88%; height:88%; border-radius:50%; }
 .apple-simple-brand strong { min-width:0; font-size:25px; letter-spacing:-.8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--apple-text); }
 .apple-simple-count { text-align:right; line-height:1; }
 .apple-simple-count small { display:block; color:var(--apple-secondary); font:800 11px var(--mono); letter-spacing:1.3px; margin-bottom:4px; }
