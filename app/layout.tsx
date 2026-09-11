@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fideliza — fidelidade sem aplicativo",
+  title: "Fidelizarei — fidelidade sem aplicativo",
   description: "Programas de fidelidade por QR Code e Wallet.",
 };
 
