@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { query } from "./database";
 
 export type BillingStatus = "trialing" | "pending" | "active" | "past_due" | "canceled" | "expired";
@@ -24,6 +24,8 @@ export const billingPlans: Record<BillingInterval, { label: string; amount: numb
 type BillingRow = {
   organization_id: string;
   organization_name: string;
+  tax_id: string | null;
+  owner_email: string | null;
   subscription_status: BillingStatus | null;
   trial_ends_at: Date | null;
   subscription_current_period_end: Date | null;
@@ -31,42 +33,41 @@ type BillingRow = {
   subscription_billing_interval: BillingInterval | null;
 };
 
-type MercadoPagoPreapproval = {
+type AsaasCustomer = {
+  id: string;
+};
+
+type AsaasList<T> = {
+  data?: T[];
+};
+
+type AsaasPayment = {
   id: string;
   status?: string;
-  external_reference?: string | number;
-  init_point?: string;
-  sandbox_init_point?: string;
-  next_payment_date?: string;
-};
-
-type MercadoPagoPayment = {
-  id: string | number;
-  status?: string;
-  external_reference?: string | number;
-  preapproval_id?: string;
-  subscription_id?: string;
-};
-
-type MercadoPagoAuthorizedPayment = {
-  id: string | number;
-  status?: string;
-  preapproval_id?: string;
-  payment?: { id?: string | number; status?: string };
+  externalReference?: string;
+  invoiceUrl?: string;
+  bankSlipUrl?: string;
+  dueDate?: string;
+  confirmedDate?: string;
+  paymentDate?: string;
 };
 
 function appUrl(origin?: string) {
   return process.env.NEXT_PUBLIC_APP_URL || origin || "http://localhost:3000";
 }
 
-function mercadoPagoToken() {
-  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
-  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN is not configured.");
+function asaasToken() {
+  const token = process.env.ASAAS_API_KEY;
+  if (!token) throw new Error("ASAAS_API_KEY is not configured.");
   return token;
 }
 
+function asaasBaseUrl() {
+  return process.env.ASAAS_ENV === "production" ? "https://api.asaas.com/v3" : "https://api-sandbox.asaas.com/v3";
+}
+
 function planAmount(interval: BillingInterval) {
-  const envName = interval === "yearly" ? "MERCADOPAGO_PLAN_YEARLY_AMOUNT" : "MERCADOPAGO_PLAN_MONTHLY_AMOUNT";
+  const envName = interval === "yearly" ? "ASAAS_PLAN_YEARLY_AMOUNT" : "ASAAS_PLAN_MONTHLY_AMOUNT";
   const amount = Number(process.env[envName] || billingPlans[interval].amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error(`${envName} must be a positive number.`);
   return amount;
@@ -101,10 +102,20 @@ function billingMessage(status: BillingStatus, trialEndsAt: Date | null, current
 async function getBillingRowForUser(userId: string) {
   const result = await query<BillingRow>(`
     select o.id as organization_id, o.name as organization_name, o.subscription_status,
+           o.tax_id,
+           owner.email as owner_email,
            o.trial_ends_at, o.subscription_current_period_end, o.mercado_pago_checkout_url,
            o.subscription_billing_interval
     from organization_members m
     join organizations o on o.id = m.organization_id
+    left join lateral (
+      select u.email
+      from organization_members om
+      join app_users u on u.id = om.user_id
+      where om.organization_id = o.id
+      order by case when om.role = 'owner' then 0 else 1 end, u.created_at asc
+      limit 1
+    ) owner on true
     where m.user_id = $1
     order by o.created_at asc
     limit 1`, [userId]);
@@ -134,45 +145,76 @@ export async function getBillingStateForUser(userId: string): Promise<BillingSta
   };
 }
 
-async function mercadoPagoRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`https://api.mercadopago.com${path}`, {
+async function asaasRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${asaasBaseUrl()}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${mercadoPagoToken()}`,
+      "User-Agent": `Fidelizarei/1.0 (${process.env.ASAAS_ENV || "sandbox"})`,
+      access_token: asaasToken(),
       ...(init?.headers || {}),
     },
   });
   const body = await response.text();
-  if (!response.ok) throw new Error(`mercadopago_request_failed:${response.status}:${body}`);
+  if (!response.ok) throw new Error(`asaas_request_failed:${response.status}:${body}`);
   return JSON.parse(body) as T;
 }
 
-export async function createMercadoPagoSubscriptionCheckout(userId: string, userEmail: string, origin: string, interval: BillingInterval) {
+function cleanCpfCnpj(value: string | null) {
+  return (value || "").replace(/\D/g, "");
+}
+
+async function createAsaasCustomer(billing: BillingState & { taxId?: string | null }, userEmail: string) {
+  const cpfCnpj = cleanCpfCnpj(billing.taxId || null);
+  const search = new URLSearchParams();
+  search.set("externalReference", billing.organizationId);
+  if (cpfCnpj) search.set("cpfCnpj", cpfCnpj);
+  const existing = await asaasRequest<AsaasList<AsaasCustomer>>(`/customers?${search.toString()}`);
+  const customer = existing.data?.[0];
+  if (customer?.id) return customer;
+
+  return asaasRequest<AsaasCustomer>("/customers", {
+    method: "POST",
+    body: JSON.stringify({
+      name: billing.organizationName,
+      email: userEmail,
+      cpfCnpj: cpfCnpj || undefined,
+      externalReference: billing.organizationId,
+    }),
+  });
+}
+
+function dueDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+export async function createAsaasSubscriptionCheckout(userId: string, userEmail: string, origin: string, interval: BillingInterval) {
   const billing = await getBillingStateForUser(userId);
+  const row = await getBillingRowForUser(userId);
+  if (!row) throw new Error("organization_not_found");
   const baseUrl = appUrl(origin);
   const plan = billingPlans[interval];
+  const customer = await createAsaasCustomer({ ...billing, taxId: row.tax_id }, userEmail);
 
-  const payload: Record<string, unknown> = {
-    reason: `Fidelizarei - Plano ${plan.label}`,
-    external_reference: billing.organizationId,
-    payer_email: userEmail,
-    back_url: `${baseUrl}/billing?return=mercadopago`,
-    notification_url: `${baseUrl}/api/billing/webhook/mercadopago`,
-    auto_recurring: {
-      frequency: plan.frequency,
-      frequency_type: plan.frequencyType,
-      transaction_amount: planAmount(interval),
-      currency_id: "BRL",
-    },
-  };
-
-  const preapproval = await mercadoPagoRequest<MercadoPagoPreapproval>("/preapproval", {
+  const payment = await asaasRequest<AsaasPayment>("/payments", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      customer: customer.id,
+      billingType: "UNDEFINED",
+      value: planAmount(interval),
+      dueDate: dueDate(),
+      description: `Fidelizarei - Plano ${plan.label}`,
+      externalReference: billing.organizationId,
+      callback: {
+        successUrl: `${baseUrl}/billing?return=asaas`,
+        autoRedirect: true,
+      },
+    }),
   });
 
-  const checkoutUrl = preapproval.init_point || preapproval.sandbox_init_point || null;
+  const checkoutUrl = payment.invoiceUrl || payment.bankSlipUrl || null;
   await query(`
     update organizations
     set mercado_pago_preapproval_id = $2,
@@ -180,9 +222,9 @@ export async function createMercadoPagoSubscriptionCheckout(userId: string, user
         subscription_billing_interval = $4,
         subscription_status = case when subscription_status = 'trialing' and trial_ends_at > now() then subscription_status else 'pending' end,
         subscription_last_synced_at = now()
-    where id = $1`, [billing.organizationId, preapproval.id, checkoutUrl, interval]);
+    where id = $1`, [billing.organizationId, payment.id, checkoutUrl, interval]);
 
-  if (!checkoutUrl) throw new Error("mercadopago_checkout_url_missing");
+  if (!checkoutUrl) throw new Error("asaas_checkout_url_missing");
   return checkoutUrl;
 }
 
@@ -206,21 +248,6 @@ export async function applyTrialCouponForUser(userId: string, interval: BillingI
   return { ok: true };
 }
 
-function mapPreapprovalStatus(status?: string): BillingStatus {
-  if (status === "authorized") return "active";
-  if (status === "pending") return "pending";
-  if (status === "paused") return "past_due";
-  if (status === "cancelled" || status === "canceled") return "canceled";
-  return "pending";
-}
-
-function mapPaymentStatus(status?: string): BillingStatus | null {
-  if (status === "approved" || status === "authorized") return "active";
-  if (status === "pending" || status === "in_process") return "pending";
-  if (status === "rejected" || status === "cancelled" || status === "refunded" || status === "charged_back") return "past_due";
-  return null;
-}
-
 function parseDate(value?: string) {
   if (!value) return null;
   const date = new Date(value);
@@ -231,90 +258,55 @@ function looksLikeUuid(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function applyPreapproval(preapproval: MercadoPagoPreapproval) {
-  const organizationId = String(preapproval.external_reference || "");
-  if (!looksLikeUuid(organizationId)) return null;
-  const status = mapPreapprovalStatus(preapproval.status);
-  const nextPaymentDate = parseDate(preapproval.next_payment_date);
-  await query(`
-    update organizations
-    set subscription_status = $2,
-        mercado_pago_preapproval_id = $3,
-        mercado_pago_checkout_url = coalesce($4, mercado_pago_checkout_url),
-        subscription_current_period_end = coalesce($5, subscription_current_period_end),
-        access_blocked_at = case when $2 in ('active', 'trialing') then null else coalesce(access_blocked_at, now()) end,
-        subscription_last_synced_at = now()
-    where id = $1`, [organizationId, status, preapproval.id, preapproval.init_point || preapproval.sandbox_init_point || null, nextPaymentDate]);
-  return organizationId;
+function mapAsaasPaymentStatus(status?: string): BillingStatus | null {
+  if (status === "CONFIRMED" || status === "RECEIVED" || status === "RECEIVED_IN_CASH") return "active";
+  if (status === "PENDING" || status === "AWAITING_RISK_ANALYSIS" || status === "AUTHORIZED") return "pending";
+  if (status === "OVERDUE") return "past_due";
+  if (status === "REFUNDED" || status === "REFUND_REQUESTED" || status === "CHARGEBACK_REQUESTED" || status === "CHARGEBACK_DISPUTE" || status === "AWAITING_CHARGEBACK_REVERSAL") return "past_due";
+  if (status === "DELETED") return "canceled";
+  return null;
 }
 
-async function applyPayment(payment: MercadoPagoPayment) {
-  let organizationId = String(payment.external_reference || "");
-  if (!looksLikeUuid(organizationId) && (payment.preapproval_id || payment.subscription_id)) {
-    const preapproval = await mercadoPagoRequest<MercadoPagoPreapproval>(`/preapproval/${payment.preapproval_id || payment.subscription_id}`);
-    organizationId = String(preapproval.external_reference || "");
-  }
+async function applyAsaasPayment(payment: AsaasPayment) {
+  const organizationId = String(payment.externalReference || "");
   if (!looksLikeUuid(organizationId)) return null;
-  const status = mapPaymentStatus(payment.status);
+  const status = mapAsaasPaymentStatus(payment.status);
   if (!status) return organizationId;
+  const paidAt = parseDate(payment.confirmedDate || payment.paymentDate);
   await query(`
     update organizations
     set subscription_status = $2,
         subscription_last_payment_id = $3,
         subscription_current_period_end = case
-          when $2 = 'active' and subscription_billing_interval = 'yearly' then now() + interval '1 year'
-          when $2 = 'active' then now() + interval '1 month'
+          when $2 = 'active' and subscription_billing_interval = 'yearly' then coalesce($4, now()) + interval '1 year'
+          when $2 = 'active' then coalesce($4, now()) + interval '1 month'
           else subscription_current_period_end
         end,
         access_blocked_at = case when $2 = 'active' then null else coalesce(access_blocked_at, now()) end,
         subscription_last_synced_at = now()
-    where id = $1`, [organizationId, status, String(payment.id)]);
+    where id = $1`, [organizationId, status, payment.id, paidAt]);
   return organizationId;
 }
 
-export function validateMercadoPagoWebhookSignature(request: Request, dataId: string) {
-  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+export function validateAsaasWebhookToken(request: Request) {
+  const secret = process.env.ASAAS_WEBHOOK_SECRET;
   if (!secret) return true;
-  const signature = request.headers.get("x-signature") || "";
-  const requestId = request.headers.get("x-request-id") || "";
-  const parts = Object.fromEntries(signature.split(",").map((part) => {
-    const [key, value] = part.split("=");
-    return [key?.trim(), value?.trim()];
-  }));
-  if (!parts.ts || !parts.v1) return false;
-  const normalizedDataId = /[a-z]/i.test(dataId) ? dataId.toLowerCase() : dataId;
-  const manifest = `id:${normalizedDataId};request-id:${requestId};ts:${parts.ts};`;
-  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
-  return expected.length === parts.v1.length && timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1));
+  const received = request.headers.get("asaas-access-token") || request.headers.get("asaas_access_token") || "";
+  return received.length === secret.length && timingSafeEqual(Buffer.from(received), Buffer.from(secret));
 }
 
-export async function processMercadoPagoWebhook(request: Request, payload: { id?: string | number; type?: string; action?: string; data?: { id?: string | number } }, url: URL) {
-  const resourceId = String(url.searchParams.get("data.id") || payload.data?.id || "");
-  const type = url.searchParams.get("type") || payload.type || "";
-  if (!resourceId) return { organizationId: null };
-  if (!validateMercadoPagoWebhookSignature(request, resourceId)) throw new Error("invalid_webhook_signature");
+export async function processAsaasWebhook(request: Request, payload: { id?: string; event?: string; payment?: AsaasPayment }) {
+  if (!validateAsaasWebhookToken(request)) throw new Error("invalid_webhook_token");
+  const payment = payload.payment;
+  if (!payment?.id) return { organizationId: null };
 
   const event = await query<{ id: string }>(`
-    insert into billing_events (provider_event_id, provider_resource_id, event_type, action, payload)
-    values ($1, $2, $3, $4, $5)
+    insert into billing_events (provider, provider_event_id, provider_resource_id, event_type, action, payload)
+    values ('asaas', $1, $2, $3, $4, $5)
     on conflict (provider, provider_event_id) do update set payload = excluded.payload
-    returning id`, [payload.id ? String(payload.id) : `${type}:${resourceId}`, resourceId, type, payload.action || null, JSON.stringify(payload)]);
+    returning id`, [payload.id || `${payload.event}:${payment.id}`, payment.id, payload.event || payment.status || "PAYMENT_UPDATED", null, JSON.stringify(payload)]);
 
-  let organizationId: string | null = null;
-  if (type === "subscription_preapproval" || type === "preapproval") {
-    organizationId = await applyPreapproval(await mercadoPagoRequest<MercadoPagoPreapproval>(`/preapproval/${resourceId}`));
-  } else if (type === "payment") {
-    organizationId = await applyPayment(await mercadoPagoRequest<MercadoPagoPayment>(`/v1/payments/${resourceId}`));
-  } else if (type === "subscription_authorized_payment") {
-    const authorized = await mercadoPagoRequest<MercadoPagoAuthorizedPayment>(`/authorized_payments/${resourceId}`);
-    if (authorized.preapproval_id) {
-      organizationId = await applyPreapproval(await mercadoPagoRequest<MercadoPagoPreapproval>(`/preapproval/${authorized.preapproval_id}`));
-    }
-    if (authorized.payment?.id) {
-      organizationId = await applyPayment({ id: authorized.payment.id, status: authorized.payment.status, preapproval_id: authorized.preapproval_id });
-    }
-  }
-
+  const organizationId = await applyAsaasPayment(payment);
   await query("update billing_events set organization_id = $2, processed_at = now() where id = $1", [event.rows[0].id, organizationId]);
   return { organizationId };
 }
