@@ -1,4 +1,4 @@
--- Fideliza MVP: standard PostgreSQL for Render.
+-- Fidelizarei MVP: standard PostgreSQL for Render.
 create extension if not exists pgcrypto;
 
 create table organizations (
