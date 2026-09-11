@@ -1,4 +1,5 @@
 import { query } from "./database";
+import { ensureOrganizationSchema } from "./organization-schema";
 
 export type PlatformCompany = {
   id: string;
@@ -7,6 +8,7 @@ export type PlatformCompany = {
   taxId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
+  salespersonName: string | null;
   billingStatus: string;
   billingInterval: "monthly" | "yearly";
   trialEndsAt: string | null;
@@ -49,6 +51,7 @@ type PlatformCompanyRow = {
   tax_id: string | null;
   owner_name: string | null;
   owner_email: string | null;
+  salesperson_name: string | null;
   subscription_status: string | null;
   subscription_billing_interval: "monthly" | "yearly" | null;
   trial_ends_at: Date | null;
@@ -87,12 +90,14 @@ function recentMonthKeys(count: number) {
 }
 
 export async function getPlatformAdminData(): Promise<PlatformAdminData> {
+  await ensureOrganizationSchema();
   const result = await query<PlatformCompanyRow>(`
     select
       o.id,
       o.name,
       o.slug,
       o.tax_id,
+      o.salesperson_name,
       owner.full_name as owner_name,
       owner.email as owner_email,
       o.subscription_status,
@@ -127,6 +132,7 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
     taxId: row.tax_id,
     ownerName: row.owner_name,
     ownerEmail: row.owner_email,
+    salespersonName: row.salesperson_name,
     billingStatus: row.subscription_status || "pending",
     billingInterval: row.subscription_billing_interval || "monthly",
     trialEndsAt: row.trial_ends_at?.toISOString() ?? null,
