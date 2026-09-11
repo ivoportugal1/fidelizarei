@@ -165,7 +165,7 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
 
   const classId = `${issuerId}.${suffix(context.program_id)}`;
   const objectId = `${issuerId}.${suffix(context.customer_id)}`;
-  const accountName = context.full_name || context.phone_e164 || "Cliente Fideliza";
+  const accountName = context.full_name || context.phone_e164 || "Cliente Fidelizarei";
   const settings = await getWalletCardSettings(context.organization_id, defaultWalletSettings({
     businessName: context.organization_name,
     programName: context.program_name,
