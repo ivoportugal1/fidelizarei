@@ -12,7 +12,7 @@ export type PlatformCompany = {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   lastPaymentId: string | null;
-  mercadoPagoPreapprovalId: string | null;
+  paymentProviderId: string | null;
   lastSyncedAt: string | null;
   createdAt: string;
   customersCount: number;
@@ -63,7 +63,7 @@ type PlatformCompanyRow = {
 };
 
 function planAmount(interval: "monthly" | "yearly") {
-  const envName = interval === "yearly" ? "MERCADOPAGO_PLAN_YEARLY_AMOUNT" : "MERCADOPAGO_PLAN_MONTHLY_AMOUNT";
+  const envName = interval === "yearly" ? "ASAAS_PLAN_YEARLY_AMOUNT" : "ASAAS_PLAN_MONTHLY_AMOUNT";
   const fallback = interval === "yearly" ? 600 : 60;
   const amount = Number(process.env[envName] || fallback);
   return Number.isFinite(amount) && amount > 0 ? amount : fallback;
@@ -132,7 +132,7 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
     trialEndsAt: row.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: row.subscription_current_period_end?.toISOString() ?? null,
     lastPaymentId: row.subscription_last_payment_id,
-    mercadoPagoPreapprovalId: row.mercado_pago_preapproval_id,
+    paymentProviderId: row.mercado_pago_preapproval_id,
     lastSyncedAt: row.subscription_last_synced_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     customersCount: Number(row.customers_count),
