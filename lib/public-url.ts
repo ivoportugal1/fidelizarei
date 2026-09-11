@@ -1,4 +1,4 @@
-export const OFFICIAL_APP_URL = "https://www.fidelizarei.com.br";
+export const OFFICIAL_APP_URL = "https://fidelizarei.com.br";
 
 export function publicAppUrl(origin?: string | null) {
   const configured = process.env.NEXT_PUBLIC_APP_URL || "";
