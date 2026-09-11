@@ -102,6 +102,7 @@ function CompanyRow({ company }: { company: PlatformCompany }) {
         <strong>{company.name}</strong>
         <small>{company.ownerName || "Responsável não informado"} · {company.ownerEmail || "email não informado"}</small>
       </td>
+      <td data-label="Vendedor">{company.salespersonName || "—"}</td>
       <td data-label="CPF/CNPJ">{formatTaxId(company.taxId)}</td>
       <td data-label="Status">
         <span className={statusClass(company.billingStatus)}>{statusLabel(company.billingStatus)}</span>
@@ -176,6 +177,7 @@ export default async function PlatformAdminPage() {
             <thead>
               <tr>
                 <th>Empresa</th>
+                <th>Vendedor</th>
                 <th>CPF/CNPJ</th>
                 <th>Status</th>
                 <th>Plano</th>
@@ -187,7 +189,7 @@ export default async function PlatformAdminPage() {
             </thead>
             <tbody>
               {data.companies.length ? data.companies.map((company) => <CompanyRow key={company.id} company={company} />) : (
-                <tr><td colSpan={8}>Nenhuma empresa cadastrada ainda.</td></tr>
+                <tr><td colSpan={9}>Nenhuma empresa cadastrada ainda.</td></tr>
               )}
             </tbody>
           </table>
