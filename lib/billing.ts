@@ -196,6 +196,7 @@ export async function createStripeSubscriptionCheckout(userId: string, userEmail
   params.set("metadata[plan]", interval);
   params.set("subscription_data[metadata][organizationId]", billing.organizationId);
   params.set("subscription_data[metadata][plan]", interval);
+  params.set("payment_method_types[0]", "card");
   params.set("locale", "pt-BR");
   params.set("billing_address_collection", "auto");
 
