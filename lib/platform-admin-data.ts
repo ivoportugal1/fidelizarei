@@ -1,5 +1,6 @@
 import { query } from "./database";
 import { ensureOrganizationSchema } from "./organization-schema";
+import { ensurePaymentSchema } from "./billing";
 
 export type PlatformCompany = {
   id: string;
@@ -57,7 +58,7 @@ type PlatformCompanyRow = {
   trial_ends_at: Date | null;
   subscription_current_period_end: Date | null;
   subscription_last_payment_id: string | null;
-  mercado_pago_preapproval_id: string | null;
+  payment_provider_subscription_id: string | null;
   subscription_last_synced_at: Date | null;
   created_at: Date;
   customers_count: string;
@@ -91,6 +92,7 @@ function recentMonthKeys(count: number) {
 
 export async function getPlatformAdminData(): Promise<PlatformAdminData> {
   await ensureOrganizationSchema();
+  await ensurePaymentSchema();
   const result = await query<PlatformCompanyRow>(`
     select
       o.id,
@@ -105,7 +107,7 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
       o.trial_ends_at,
       o.subscription_current_period_end,
       o.subscription_last_payment_id,
-      o.mercado_pago_preapproval_id,
+      o.payment_provider_subscription_id,
       o.subscription_last_synced_at,
       o.created_at,
       (select count(*) from customers c where c.organization_id = o.id) as customers_count,
@@ -138,7 +140,7 @@ export async function getPlatformAdminData(): Promise<PlatformAdminData> {
     trialEndsAt: row.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: row.subscription_current_period_end?.toISOString() ?? null,
     lastPaymentId: row.subscription_last_payment_id,
-    paymentProviderId: row.mercado_pago_preapproval_id,
+    paymentProviderId: row.payment_provider_subscription_id,
     lastSyncedAt: row.subscription_last_synced_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     customersCount: Number(row.customers_count),
