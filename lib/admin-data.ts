@@ -21,6 +21,15 @@ export type DashboardData = {
     pointsPerCode: number;
     backgroundColor: string;
   };
+  campaigns: Array<{
+    id: string;
+    name: string;
+    rewardName: string;
+    pointsToReward: number;
+    pointsPerCode: number;
+    active: boolean;
+    createdAt: string;
+  }>;
   walletSettings: WalletCardSettings;
   metrics: {
     customers: number;
@@ -64,6 +73,16 @@ type ContextRow = {
   subscription_current_period_end: Date | null;
 };
 
+type CampaignRow = {
+  id: string;
+  name: string;
+  reward_name: string;
+  points_to_reward: number;
+  points_per_code: number;
+  active: boolean;
+  created_at: Date;
+};
+
 export async function getDashboardData(userId: string, userEmail: string, userName: string | null, origin = ""): Promise<DashboardData> {
   const context = await query<ContextRow>(`
     select o.id as organization_id, o.name as organization_name, o.plan,
@@ -89,7 +108,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
     backgroundColor: row.pass_background_color,
   });
 
-  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings, qrBatches] = await Promise.all([
+  const [customerCount, pointCount, rewardCount, activeCodeCount, redeemedCodeCount, customers, recent, walletSettings, qrBatches, campaigns] = await Promise.all([
     query<{ count: string }>("select count(*) from customers where organization_id = $1 and status = 'active'", [row.organization_id]),
     query<{ total: string | null }>("select coalesce(sum(points_delta), 0) as total from point_transactions where organization_id = $1 and kind = 'earn'", [row.organization_id]),
     query<{ total: string | null }>(`
@@ -117,6 +136,11 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       limit 12`, [row.organization_id]),
     getWalletCardSettings(row.organization_id, defaults, origin),
     listQrBatches(row.organization_id, row.program_id),
+    query<CampaignRow>(`
+      select id, name, reward_name, points_to_reward, points_per_code, active, created_at
+      from loyalty_programs
+      where organization_id = $1
+      order by active desc, created_at asc`, [row.organization_id]),
   ]);
 
   return {
@@ -138,6 +162,15 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       pointsPerCode: row.points_per_code,
       backgroundColor: row.pass_background_color,
     },
+    campaigns: campaigns.rows.map((campaign) => ({
+      id: campaign.id,
+      name: campaign.name,
+      rewardName: campaign.reward_name,
+      pointsToReward: Number(campaign.points_to_reward),
+      pointsPerCode: Number(campaign.points_per_code),
+      active: campaign.active,
+      createdAt: campaign.created_at.toISOString(),
+    })),
     walletSettings,
     metrics: {
       customers: Number(customerCount.rows[0]?.count ?? 0),
