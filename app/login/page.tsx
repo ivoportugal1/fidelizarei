@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={submit}>
-        <a className="brand" href="/">fideliza<span>.</span></a>
+        <a className="brand" href="/">Fidelizarei</a>
         <p className="eyebrow">ACESSO DA EMPRESA</p>
         <h1>Entrar no painel</h1>
         <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
