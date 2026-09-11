@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHmac } from "node:crypto";
 import { query } from "./database";
 import { publicAppUrl } from "./public-url";
 
@@ -17,9 +17,9 @@ export type BillingState = {
   message: string;
 };
 
-export const billingPlans: Record<BillingInterval, { label: string; amount: number; frequency: number; frequencyType: "months" }> = {
-  monthly: { label: "Mensal", amount: 60, frequency: 1, frequencyType: "months" },
-  yearly: { label: "Anual", amount: 600, frequency: 12, frequencyType: "months" },
+export const billingPlans: Record<BillingInterval, { label: string; amount: number }> = {
+  monthly: { label: "Mensal", amount: 60 },
+  yearly: { label: "Anual", amount: 600 },
 };
 
 type BillingRow = {
@@ -34,44 +34,42 @@ type BillingRow = {
   subscription_billing_interval: BillingInterval | null;
 };
 
-type AsaasCustomer = {
+type StripeCheckoutSession = {
   id: string;
+  url?: string | null;
+  client_reference_id?: string | null;
+  customer?: string | null;
+  customer_email?: string | null;
+  mode?: string | null;
+  payment_status?: string | null;
+  subscription?: string | null | { id?: string | null };
+  metadata?: Record<string, string> | null;
 };
 
-type AsaasList<T> = {
-  data?: T[];
+type StripeSubscription = {
+  id: string;
+  status?: string | null;
+  current_period_end?: number | null;
+  cancel_at_period_end?: boolean | null;
+  metadata?: Record<string, string> | null;
 };
 
-type AsaasPayment = {
+type StripeInvoice = {
   id: string;
-  status?: string;
-  externalReference?: string;
-  invoiceUrl?: string;
-  bankSlipUrl?: string;
-  dueDate?: string;
-  confirmedDate?: string;
-  paymentDate?: string;
+  subscription?: string | null | { id?: string | null; metadata?: Record<string, string> | null };
+  subscription_details?: { metadata?: Record<string, string> | null } | null;
+  lines?: { data?: Array<{ period?: { end?: number | null } | null }> } | null;
+  status?: string | null;
+};
+
+type StripeEvent = {
+  id: string;
+  type: string;
+  data?: { object?: unknown };
 };
 
 function appUrl(origin?: string) {
   return publicAppUrl(origin);
-}
-
-function asaasToken() {
-  const token = process.env.ASAAS_API_KEY;
-  if (!token) throw new Error("ASAAS_API_KEY is not configured.");
-  return token;
-}
-
-function asaasBaseUrl() {
-  return process.env.ASAAS_ENV === "production" ? "https://api.asaas.com/v3" : "https://api-sandbox.asaas.com/v3";
-}
-
-function planAmount(interval: BillingInterval) {
-  const envName = interval === "yearly" ? "ASAAS_PLAN_YEARLY_AMOUNT" : "ASAAS_PLAN_MONTHLY_AMOUNT";
-  const amount = Number(process.env[envName] || billingPlans[interval].amount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error(`${envName} must be a positive number.`);
-  return amount;
 }
 
 function normalizeCoupon(code?: string) {
@@ -146,82 +144,64 @@ export async function getBillingStateForUser(userId: string): Promise<BillingSta
   };
 }
 
-async function asaasRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${asaasBaseUrl()}${path}`, {
-    ...init,
+function stripeSecretKey() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not configured.");
+  return key;
+}
+
+function stripePriceId(interval: BillingInterval) {
+  const envName = interval === "yearly" ? "STRIPE_PRICE_YEARLY" : "STRIPE_PRICE_MONTHLY";
+  const price = process.env[envName];
+  if (!price) throw new Error(`${envName} is not configured.`);
+  return price;
+}
+
+function stripeSubscriptionId(value: StripeCheckoutSession["subscription"] | StripeInvoice["subscription"]) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.id || null;
+}
+
+async function stripePost<T>(path: string, params: URLSearchParams): Promise<T> {
+  const response = await fetch(`https://api.stripe.com/v1${path}`, {
+    method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "User-Agent": `Fidelizarei/1.0 (${process.env.ASAAS_ENV || "sandbox"})`,
-      access_token: asaasToken(),
-      ...(init?.headers || {}),
+      Authorization: `Bearer ${stripeSecretKey()}`,
+      "Content-Type": "application/x-www-form-urlencoded",
     },
+    body: params.toString(),
   });
   const body = await response.text();
-  if (!response.ok) throw new Error(`asaas_request_failed:${response.status}:${body}`);
+  if (!response.ok) throw new Error(`stripe_request_failed:${response.status}:${body}`);
   return JSON.parse(body) as T;
 }
 
-function cleanCpfCnpj(value: string | null) {
-  return (value || "").replace(/\D/g, "");
-}
-
-function asaasCpfCnpjForCustomer(value: string | null) {
-  const cleaned = cleanCpfCnpj(value);
-  if (cleaned) return cleaned;
-  if (process.env.ASAAS_ENV !== "production") return "11144477735";
-  throw new Error("customer_tax_id_required");
-}
-
-async function createAsaasCustomer(billing: BillingState & { taxId?: string | null }, userEmail: string) {
-  const cpfCnpj = asaasCpfCnpjForCustomer(billing.taxId || null);
-  const search = new URLSearchParams();
-  search.set("externalReference", billing.organizationId);
-  const existing = await asaasRequest<AsaasList<AsaasCustomer>>(`/customers?${search.toString()}`);
-  const customer = existing.data?.[0];
-  if (customer?.id) return customer;
-
-  return asaasRequest<AsaasCustomer>("/customers", {
-    method: "POST",
-    body: JSON.stringify({
-      name: billing.organizationName,
-      email: userEmail,
-      cpfCnpj,
-      externalReference: billing.organizationId,
-    }),
-  });
-}
-
-function dueDate() {
-  const date = new Date();
-  date.setDate(date.getDate() + 1);
-  return date.toISOString().slice(0, 10);
-}
-
-export async function createAsaasSubscriptionCheckout(userId: string, userEmail: string, origin: string, interval: BillingInterval) {
+export async function createStripeSubscriptionCheckout(userId: string, userEmail: string, origin: string, interval: BillingInterval) {
   const billing = await getBillingStateForUser(userId);
   const row = await getBillingRowForUser(userId);
   if (!row) throw new Error("organization_not_found");
   const baseUrl = appUrl(origin);
   const plan = billingPlans[interval];
-  const customer = await createAsaasCustomer({ ...billing, taxId: row.tax_id }, userEmail);
+  const params = new URLSearchParams();
 
-  const payment = await asaasRequest<AsaasPayment>("/payments", {
-    method: "POST",
-    body: JSON.stringify({
-      customer: customer.id,
-      billingType: "UNDEFINED",
-      value: planAmount(interval),
-      dueDate: dueDate(),
-      description: `Fidelizarei - Plano ${plan.label}`,
-      externalReference: billing.organizationId,
-      callback: {
-        successUrl: `${baseUrl}/billing?return=asaas`,
-        autoRedirect: true,
-      },
-    }),
-  });
+  params.set("mode", "subscription");
+  params.set("line_items[0][price]", stripePriceId(interval));
+  params.set("line_items[0][quantity]", "1");
+  params.set("client_reference_id", billing.organizationId);
+  params.set("customer_email", row.owner_email || userEmail);
+  params.set("success_url", `${baseUrl}/billing?return=stripe&session_id={CHECKOUT_SESSION_ID}`);
+  params.set("cancel_url", `${baseUrl}/billing?canceled=1`);
+  params.set("metadata[organizationId]", billing.organizationId);
+  params.set("metadata[plan]", interval);
+  params.set("subscription_data[metadata][organizationId]", billing.organizationId);
+  params.set("subscription_data[metadata][plan]", interval);
+  params.set("locale", "pt-BR");
+  params.set("billing_address_collection", "auto");
 
-  const checkoutUrl = payment.invoiceUrl || payment.bankSlipUrl || null;
+  const session = await stripePost<StripeCheckoutSession>("/checkout/sessions", params);
+  if (!session.url) throw new Error("stripe_checkout_url_missing");
+
   await query(`
     update organizations
     set mercado_pago_preapproval_id = $2,
@@ -229,10 +209,9 @@ export async function createAsaasSubscriptionCheckout(userId: string, userEmail:
         subscription_billing_interval = $4,
         subscription_status = case when subscription_status = 'trialing' and trial_ends_at > now() then subscription_status else 'pending' end,
         subscription_last_synced_at = now()
-    where id = $1`, [billing.organizationId, payment.id, checkoutUrl, interval]);
+    where id = $1`, [billing.organizationId, session.id, session.url, interval]);
 
-  if (!checkoutUrl) throw new Error("asaas_checkout_url_missing");
-  return checkoutUrl;
+  return session.url;
 }
 
 export async function applyTrialCouponForUser(userId: string, interval: BillingInterval, couponCode?: string) {
@@ -255,9 +234,9 @@ export async function applyTrialCouponForUser(userId: string, interval: BillingI
   return { ok: true };
 }
 
-function parseDate(value?: string) {
+function dateFromUnix(value?: number | null) {
   if (!value) return null;
-  const date = new Date(value);
+  const date = new Date(value * 1000);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -265,55 +244,116 @@ function looksLikeUuid(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function mapAsaasPaymentStatus(status?: string): BillingStatus | null {
-  if (status === "CONFIRMED" || status === "RECEIVED" || status === "RECEIVED_IN_CASH") return "active";
-  if (status === "PENDING" || status === "AWAITING_RISK_ANALYSIS" || status === "AUTHORIZED") return "pending";
-  if (status === "OVERDUE") return "past_due";
-  if (status === "REFUNDED" || status === "REFUND_REQUESTED" || status === "CHARGEBACK_REQUESTED" || status === "CHARGEBACK_DISPUTE" || status === "AWAITING_CHARGEBACK_REVERSAL") return "past_due";
-  if (status === "DELETED") return "canceled";
-  return null;
+function mapStripeSubscriptionStatus(status?: string | null): BillingStatus {
+  if (status === "active") return "active";
+  if (status === "trialing") return "trialing";
+  if (status === "past_due" || status === "unpaid" || status === "incomplete_expired") return "past_due";
+  if (status === "canceled") return "canceled";
+  return "pending";
 }
 
-async function applyAsaasPayment(payment: AsaasPayment) {
-  const organizationId = String(payment.externalReference || "");
+async function updateOrganizationFromStripeSubscription(subscription: StripeSubscription) {
+  const organizationId = subscription.metadata?.organizationId || null;
   if (!looksLikeUuid(organizationId)) return null;
-  const status = mapAsaasPaymentStatus(payment.status);
-  if (!status) return organizationId;
-  const paidAt = parseDate(payment.confirmedDate || payment.paymentDate);
+  const status = mapStripeSubscriptionStatus(subscription.status);
+  const currentPeriodEnd = dateFromUnix(subscription.current_period_end);
   await query(`
     update organizations
     set subscription_status = $2,
-        subscription_last_payment_id = $3,
-        subscription_current_period_end = case
-          when $2 = 'active' and subscription_billing_interval = 'yearly' then coalesce($4, now()) + interval '1 year'
-          when $2 = 'active' then coalesce($4, now()) + interval '1 month'
-          else subscription_current_period_end
-        end,
-        access_blocked_at = case when $2 = 'active' then null else coalesce(access_blocked_at, now()) end,
+        mercado_pago_preapproval_id = $3,
+        subscription_current_period_end = coalesce($4, subscription_current_period_end),
+        access_blocked_at = case when $2 in ('active', 'trialing') then null else coalesce(access_blocked_at, now()) end,
         subscription_last_synced_at = now()
-    where id = $1`, [organizationId, status, payment.id, paidAt]);
+    where id = $1`, [organizationId, status, subscription.id, currentPeriodEnd]);
   return organizationId;
 }
 
-export function validateAsaasWebhookToken(request: Request) {
-  const secret = process.env.ASAAS_WEBHOOK_SECRET;
-  if (!secret) return true;
-  const received = request.headers.get("asaas-access-token") || request.headers.get("asaas_access_token") || "";
-  return received.length === secret.length && timingSafeEqual(Buffer.from(received), Buffer.from(secret));
+async function updateOrganizationFromCheckoutSession(session: StripeCheckoutSession) {
+  const organizationId = session.client_reference_id || session.metadata?.organizationId || null;
+  if (!looksLikeUuid(organizationId)) return null;
+  const subscriptionId = stripeSubscriptionId(session.subscription);
+  const status: BillingStatus = session.payment_status === "paid" ? "active" : "pending";
+  await query(`
+    update organizations
+    set subscription_status = $2,
+        mercado_pago_preapproval_id = coalesce($3, mercado_pago_preapproval_id),
+        subscription_last_payment_id = $4,
+        access_blocked_at = case when $2 = 'active' then null else access_blocked_at end,
+        subscription_last_synced_at = now()
+    where id = $1`, [organizationId, status, subscriptionId, session.id]);
+  return organizationId;
 }
 
-export async function processAsaasWebhook(request: Request, payload: { id?: string; event?: string; payment?: AsaasPayment }) {
-  if (!validateAsaasWebhookToken(request)) throw new Error("invalid_webhook_token");
-  const payment = payload.payment;
-  if (!payment?.id) return { organizationId: null };
+async function updateOrganizationFromInvoice(invoice: StripeInvoice) {
+  const organizationId = invoice.subscription_details?.metadata?.organizationId
+    || (typeof invoice.subscription === "object" ? invoice.subscription?.metadata?.organizationId : null)
+    || null;
+  const subscriptionId = stripeSubscriptionId(invoice.subscription);
+  if (!looksLikeUuid(organizationId) && !subscriptionId) return null;
+  const periodEnd = dateFromUnix(invoice.lines?.data?.[0]?.period?.end || null);
+  const result = await query<{ id: string }>(`
+    update organizations
+    set subscription_status = 'active',
+        mercado_pago_preapproval_id = coalesce($2, mercado_pago_preapproval_id),
+        subscription_last_payment_id = $3,
+        subscription_current_period_end = coalesce($4, subscription_current_period_end),
+        access_blocked_at = null,
+        subscription_last_synced_at = now()
+    where ($1::uuid is not null and id = $1::uuid)
+       or ($2::text is not null and mercado_pago_preapproval_id = $2::text)
+    returning id`, [looksLikeUuid(organizationId) ? organizationId : null, subscriptionId, invoice.id, periodEnd]);
+  return result.rows[0]?.id || organizationId || null;
+}
+
+function verifyStripeSignature(rawBody: string, signatureHeader: string | null) {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not configured.");
+  if (!signatureHeader) throw new Error("missing_stripe_signature");
+
+  const parts = signatureHeader.split(",").reduce<Record<string, string[]>>((acc, part) => {
+    const [key, value] = part.split("=", 2);
+    if (!key || !value) return acc;
+    acc[key] = acc[key] || [];
+    acc[key].push(value);
+    return acc;
+  }, {});
+  const timestamp = parts.t?.[0];
+  const signatures = parts.v1 || [];
+  if (!timestamp || !signatures.length) throw new Error("invalid_stripe_signature");
+  const age = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
+  if (!Number.isFinite(age) || age > 300) throw new Error("stale_stripe_signature");
+
+  const expected = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const valid = signatures.some((signature) => {
+    const received = Buffer.from(signature, "hex");
+    return received.length === expectedBuffer.length && timingSafeEqual(received, expectedBuffer);
+  });
+  if (!valid) throw new Error("invalid_stripe_signature");
+}
+
+export async function processStripeWebhook(request: Request) {
+  const rawBody = await request.text();
+  verifyStripeSignature(rawBody, request.headers.get("stripe-signature"));
+  const payload = JSON.parse(rawBody) as StripeEvent;
+  const object = payload.data?.object;
+  const providerResourceId = object && typeof object === "object" && "id" in object ? String((object as { id?: unknown }).id || "") : payload.id;
 
   const event = await query<{ id: string }>(`
     insert into billing_events (provider, provider_event_id, provider_resource_id, event_type, action, payload)
-    values ('asaas', $1, $2, $3, $4, $5)
+    values ('stripe', $1, $2, $3, $4, $5)
     on conflict (provider, provider_event_id) do update set payload = excluded.payload
-    returning id`, [payload.id || `${payload.event}:${payment.id}`, payment.id, payload.event || payment.status || "PAYMENT_UPDATED", null, JSON.stringify(payload)]);
+    returning id`, [payload.id, providerResourceId, payload.type, null, JSON.stringify(payload)]);
 
-  const organizationId = await applyAsaasPayment(payment);
+  let organizationId: string | null = null;
+  if (payload.type === "checkout.session.completed") {
+    organizationId = await updateOrganizationFromCheckoutSession(object as StripeCheckoutSession);
+  } else if (payload.type === "customer.subscription.updated" || payload.type === "customer.subscription.deleted") {
+    organizationId = await updateOrganizationFromStripeSubscription(object as StripeSubscription);
+  } else if (payload.type === "invoice.payment_succeeded") {
+    organizationId = await updateOrganizationFromInvoice(object as StripeInvoice);
+  }
+
   await query("update billing_events set organization_id = $2, processed_at = now() where id = $1", [event.rows[0].id, organizationId]);
   return { organizationId };
 }
