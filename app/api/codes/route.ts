@@ -10,6 +10,7 @@ import {
   normalizeBatchQuantity,
   publicCodeUrl,
 } from "@/lib/qr-batches";
+import { publicAppUrl } from "@/lib/public-url";
 
 export const runtime = "nodejs";
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   const program = await getUserProgramContext(user.id);
   if (!program) return NextResponse.json({ ok: false, error: "program_not_found" }, { status: 404 });
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+  const origin = publicAppUrl(new URL(request.url).origin);
   const result = await transaction(async (client) => {
     const batch = await client.query<{ id: string; created_at: Date }>(`
       insert into qr_code_batches (organization_id, program_id, quantity, created_by_user_id)
