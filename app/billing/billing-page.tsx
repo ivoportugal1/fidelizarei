@@ -27,7 +27,7 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
     const body = await response.json();
     setLoading(false);
     if (!response.ok || !body.ok) {
-      setError("Não consegui abrir o checkout Asaas. Confira as variáveis de ambiente.");
+      setError("Não consegui abrir o checkout Stripe. Confira as variáveis de ambiente.");
       return;
     }
     window.location.href = body.checkoutUrl;
@@ -72,10 +72,10 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
         {billing.accessAllowed ? (
           <a className="button button-dark" href="/dashboard">Ir para o painel</a>
         ) : (
-          <button className="button button-dark" onClick={subscribe} disabled={loading}>{loading ? "Abrindo..." : "Assinar com Asaas"}</button>
+          <button className="button button-dark" onClick={subscribe} disabled={loading}>{loading ? "Abrindo..." : "Assinar com Stripe"}</button>
         )}
         {billing.accessAllowed && <button className="button button-light" onClick={subscribe} disabled={loading}>{loading ? "Abrindo..." : "Gerenciar/ativar assinatura"}</button>}
-        <p className="billing-note">O acesso é liberado automaticamente quando o Asaas confirmar o pagamento. Cupom válido libera o período promocional direto pelo Fidelizarei.</p>
+        <p className="billing-note">O acesso é liberado automaticamente quando o Stripe confirmar o pagamento. Cupom válido libera o período promocional direto pelo Fidelizarei.</p>
         {error && <p className="form-error">{error}</p>}
       </section>
     </main>
