@@ -113,7 +113,7 @@ function CompanyRow({ company }: { company: PlatformCompany }) {
         <strong>{company.customersCount.toLocaleString("pt-BR")}</strong>
         <small>{company.redeemedCodesCount.toLocaleString("pt-BR")} QR usados · {company.activeCodesCount.toLocaleString("pt-BR")} ativos</small>
       </td>
-      <td data-label="Asaas">
+      <td data-label="Stripe">
         <span className="admin-id">{shortId(company.paymentProviderId)}</span>
         <small>{company.lastPaymentId ? `Pgto ${shortId(company.lastPaymentId)}` : "Sem pagamento confirmado"}</small>
       </td>
@@ -182,7 +182,7 @@ export default async function PlatformAdminPage() {
                 <th>Cadastro</th>
                 <th>Validade</th>
                 <th>Uso</th>
-                <th>Asaas</th>
+                <th>Stripe</th>
               </tr>
             </thead>
             <tbody>
