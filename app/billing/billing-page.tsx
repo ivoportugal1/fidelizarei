@@ -53,7 +53,7 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
   return (
     <main className="billing-page">
       <section className="billing-card">
-        <a className="brand" href="/">fideliza<span>.</span></a>
+        <a className="brand" href="/">Fidelizarei</a>
         <p className="eyebrow">ASSINATURA</p>
         <h1>Planos Fidelizarei</h1>
         <p className="muted">{billing.message}</p>
