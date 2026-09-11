@@ -68,6 +68,9 @@ const progressEmoji: Record<PointTheme, string> = {
   universal: "●",
 };
 
+const dashboardNavItems = ["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão"];
+const dashboardNavIcons = { "Visão geral": "▦", Clientes: "♙", Campanhas: "◌", "QR Codes": "▣", Recompensas: "♢", "Personalizar cartão": "✦" } as Record<string, string>;
+
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -97,6 +100,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState("Visão geral");
   const [currentDateLabel, setCurrentDateLabel] = useState("FIDELIZAREI");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [baseUrl, setBaseUrl] = useState("https://fidelizarei.com.br");
   const [quantity, setQuantity] = useState(25);
   const [showGenerator, setShowGenerator] = useState(false);
@@ -210,8 +214,12 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="/">Fidelizarei</a>
+      {menuOpen && <button className="sidebar-overlay" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
+      <aside className={menuOpen ? "sidebar open" : "sidebar"}>
+        <div className="sidebar-head">
+          <a className="brand" href="/">Fidelizarei</a>
+          <button className="sidebar-close" aria-label="Fechar menu" onClick={() => setMenuOpen(false)}>×</button>
+        </div>
         <div className="company-switcher">
           <div className="company-logo">
             {data.walletSettings.logoUrl ? (
@@ -223,9 +231,9 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           <div><strong>{data.organization.name}</strong><small>Plano {planLabel(data.organization.billingInterval)}</small></div>
         </div>
         <nav>
-          {["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão"].map((item) => (
-            <button key={item} className={active === item ? "nav-item active" : "nav-item"} onClick={() => setActive(item)}>
-              <span>{({ "Visão geral": "▦", Clientes: "♙", Campanhas: "◌", "QR Codes": "▣", Recompensas: "♢", "Personalizar cartão": "✦" } as Record<string, string>)[item]}</span>{item}
+          {dashboardNavItems.map((item) => (
+            <button key={item} className={active === item ? "nav-item active" : "nav-item"} onClick={() => { setActive(item); setMenuOpen(false); }}>
+              <span>{dashboardNavIcons[item]}</span>{item}
             </button>
           ))}
         </nav>
@@ -237,7 +245,10 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
       <section className="workspace">
         <TrialBanner data={data} />
         <header className="topbar">
-          <div><p>{currentDateLabel}</p><h1>{active}</h1></div>
+          <div className="topbar-title">
+            <button className="mobile-menu-button" aria-label="Abrir menu" onClick={() => setMenuOpen(true)}>☰ Menu</button>
+            <div><p>{currentDateLabel}</p><h1>{active}</h1></div>
+          </div>
           <div className="top-actions"><button className="button button-dark" onClick={() => setShowGenerator(true)}>+ Gerar QR Codes</button></div>
         </header>
 
