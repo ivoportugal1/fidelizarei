@@ -31,6 +31,7 @@ const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem atividade";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CL";
 const planLabel = (interval: "monthly" | "yearly") => interval === "yearly" ? "Anual" : "Mensal";
+type AppleLogoShape = "circle" | "rounded" | "pill";
 
 function daysLeft(value: string | null) {
   if (!value) return null;
@@ -599,6 +600,57 @@ function PointIcon({ theme }: { theme: PointTheme }) {
   return null;
 }
 
+function detectTransparentLogoCorners(image: HTMLImageElement) {
+  try {
+    const size = 24;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) return false;
+    context.clearRect(0, 0, size, size);
+    context.drawImage(image, 0, 0, size, size);
+    const pixels = context.getImageData(0, 0, size, size).data;
+    return [
+      [0, 0],
+      [size - 1, 0],
+      [0, size - 1],
+      [size - 1, size - 1],
+    ].some(([x, y]) => pixels[(y * size + x) * 4 + 3] < 220);
+  } catch {
+    return false;
+  }
+}
+
+function AdaptiveAppleLogo({ settings }: { settings: WalletSettings }) {
+  const [shape, setShape] = useState<AppleLogoShape>("circle");
+
+  useEffect(() => {
+    if (!settings.logoUrl) {
+      setShape("circle");
+      return;
+    }
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+      const ratio = image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
+      if (ratio >= 1.45) {
+        setShape("pill");
+        return;
+      }
+      setShape(detectTransparentLogoCorners(image) ? "circle" : "rounded");
+    };
+    image.onerror = () => setShape("circle");
+    image.src = settings.logoUrl;
+  }, [settings.logoUrl]);
+
+  return (
+    <span className={`apple-logo-frame apple-logo-${shape}`}>
+      {settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" /> : initials(settings.businessName)}
+    </span>
+  );
+}
+
 function AppleWalletPreview({ settings, points }: { settings: WalletSettings; points: number }) {
   const completed = points >= settings.pointsGoal;
   return <div className="apple-pass apple-pass-simple" style={{
@@ -610,7 +662,7 @@ function AppleWalletPreview({ settings, points }: { settings: WalletSettings; po
   } as CSSProperties}>
     <div className="apple-simple-head">
       <div className="apple-simple-brand">
-        <span>{settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" /> : initials(settings.businessName)}</span>
+        <AdaptiveAppleLogo settings={settings} />
         <strong>{settings.businessName}</strong>
       </div>
       <div className="apple-simple-count"><small>{settings.progressLabel.toUpperCase()}</small><b>{points}/{settings.pointsGoal}</b></div>
