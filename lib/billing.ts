@@ -30,7 +30,7 @@ type BillingRow = {
   subscription_status: BillingStatus | null;
   trial_ends_at: Date | null;
   subscription_current_period_end: Date | null;
-  mercado_pago_checkout_url: string | null;
+  payment_checkout_url: string | null;
   subscription_billing_interval: BillingInterval | null;
 };
 
@@ -77,8 +77,42 @@ function normalizeCoupon(code?: string) {
 }
 
 export function isTrialCouponValid(code?: string) {
-  const configured = normalizeCoupon(process.env.FIDELIZAREI_TRIAL_COUPON_CODE || "30DIASGRATIS");
+  const configured = normalizeCoupon(process.env.FIDELIZAREI_TRIAL_COUPON_CODE);
   return !!configured && normalizeCoupon(code) === configured;
+}
+
+let paymentSchemaReady = false;
+
+export async function ensurePaymentSchema() {
+  if (paymentSchemaReady) return;
+  await query(`
+    do $$
+    begin
+      if exists (
+        select 1 from information_schema.columns
+        where table_name = 'organizations' and column_name = 'mercado_pago_preapproval_id'
+      ) and not exists (
+        select 1 from information_schema.columns
+        where table_name = 'organizations' and column_name = 'payment_provider_subscription_id'
+      ) then
+        alter table organizations rename column mercado_pago_preapproval_id to payment_provider_subscription_id;
+      end if;
+
+      if exists (
+        select 1 from information_schema.columns
+        where table_name = 'organizations' and column_name = 'mercado_pago_checkout_url'
+      ) and not exists (
+        select 1 from information_schema.columns
+        where table_name = 'organizations' and column_name = 'payment_checkout_url'
+      ) then
+        alter table organizations rename column mercado_pago_checkout_url to payment_checkout_url;
+      end if;
+    end $$;
+
+    alter table organizations add column if not exists payment_provider_subscription_id text;
+    alter table organizations add column if not exists payment_checkout_url text;
+  `);
+  paymentSchemaReady = true;
 }
 
 function isAllowed(status: BillingStatus, trialEndsAt: Date | null, currentPeriodEnd: Date | null) {
@@ -99,11 +133,12 @@ function billingMessage(status: BillingStatus, trialEndsAt: Date | null, current
 }
 
 async function getBillingRowForUser(userId: string) {
+  await ensurePaymentSchema();
   const result = await query<BillingRow>(`
     select o.id as organization_id, o.name as organization_name, o.subscription_status,
            o.tax_id,
            owner.email as owner_email,
-           o.trial_ends_at, o.subscription_current_period_end, o.mercado_pago_checkout_url,
+           o.trial_ends_at, o.subscription_current_period_end, o.payment_checkout_url,
            o.subscription_billing_interval
     from organization_members m
     join organizations o on o.id = m.organization_id
@@ -137,7 +172,7 @@ export async function getBillingStateForUser(userId: string): Promise<BillingSta
     status,
     trialEndsAt: row.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: row.subscription_current_period_end?.toISOString() ?? null,
-    checkoutUrl: row.mercado_pago_checkout_url,
+    checkoutUrl: row.payment_checkout_url,
     billingInterval: row.subscription_billing_interval || "monthly",
     accessAllowed: isAllowed(status, row.trial_ends_at, row.subscription_current_period_end),
     message: billingMessage(status, row.trial_ends_at, row.subscription_current_period_end),
@@ -205,8 +240,8 @@ export async function createStripeSubscriptionCheckout(userId: string, userEmail
 
   await query(`
     update organizations
-    set mercado_pago_preapproval_id = $2,
-        mercado_pago_checkout_url = $3,
+    set payment_provider_subscription_id = $2,
+        payment_checkout_url = $3,
         subscription_billing_interval = $4,
         subscription_status = case when subscription_status = 'trialing' and trial_ends_at > now() then subscription_status else 'pending' end,
         subscription_last_synced_at = now()
@@ -261,7 +296,7 @@ async function updateOrganizationFromStripeSubscription(subscription: StripeSubs
   await query(`
     update organizations
     set subscription_status = $2,
-        mercado_pago_preapproval_id = $3,
+        payment_provider_subscription_id = $3,
         subscription_current_period_end = coalesce($4, subscription_current_period_end),
         access_blocked_at = case when $2 in ('active', 'trialing') then null else coalesce(access_blocked_at, now()) end,
         subscription_last_synced_at = now()
@@ -277,7 +312,7 @@ async function updateOrganizationFromCheckoutSession(session: StripeCheckoutSess
   await query(`
     update organizations
     set subscription_status = $2,
-        mercado_pago_preapproval_id = coalesce($3, mercado_pago_preapproval_id),
+        payment_provider_subscription_id = coalesce($3, payment_provider_subscription_id),
         subscription_last_payment_id = $4,
         access_blocked_at = case when $2 = 'active' then null else access_blocked_at end,
         subscription_last_synced_at = now()
@@ -295,13 +330,13 @@ async function updateOrganizationFromInvoice(invoice: StripeInvoice) {
   const result = await query<{ id: string }>(`
     update organizations
     set subscription_status = 'active',
-        mercado_pago_preapproval_id = coalesce($2, mercado_pago_preapproval_id),
+        payment_provider_subscription_id = coalesce($2, payment_provider_subscription_id),
         subscription_last_payment_id = $3,
         subscription_current_period_end = coalesce($4, subscription_current_period_end),
         access_blocked_at = null,
         subscription_last_synced_at = now()
     where ($1::uuid is not null and id = $1::uuid)
-       or ($2::text is not null and mercado_pago_preapproval_id = $2::text)
+       or ($2::text is not null and payment_provider_subscription_id = $2::text)
     returning id`, [looksLikeUuid(organizationId) ? organizationId : null, subscriptionId, invoice.id, periodEnd]);
   return result.rows[0]?.id || organizationId || null;
 }
@@ -334,6 +369,7 @@ function verifyStripeSignature(rawBody: string, signatureHeader: string | null) 
 }
 
 export async function processStripeWebhook(request: Request) {
+  await ensurePaymentSchema();
   const rawBody = await request.text();
   verifyStripeSignature(rawBody, request.headers.get("stripe-signature"));
   const payload = JSON.parse(rawBody) as StripeEvent;
