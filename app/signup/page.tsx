@@ -36,7 +36,7 @@ export default function SignupPage() {
   return (
     <main className="login-page">
       <form className="login-card signup-card" onSubmit={submit}>
-        <a className="brand" href="/">fideliza<span>.</span></a>
+        <a className="brand" href="/">Fidelizarei</a>
         <p className="eyebrow">ESCOLHA SEU PLANO</p>
         <h1>Criar conta</h1>
         <p className="muted">Escolha mensal ou anual. Se recebeu um cupom da Fidelizarei, aplique antes de criar a conta.</p>
