@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-  const body = await request.json().catch(() => ({})) as { quantity?: number; expiresInDays?: number | null };
+  const body = await request.json().catch(() => ({})) as { quantity?: number; expiresInDays?: number | null; programId?: string | null };
   let quantity: number;
   try {
     quantity = normalizeBatchQuantity(body.quantity ?? 25);
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const expiresInDays = body.expiresInDays ? Math.max(1, Math.min(Number(body.expiresInDays), 365)) : null;
-  const program = await getUserProgramContext(user.id);
+  const program = await getUserProgramContext(user.id, body.programId || null);
   if (!program) return NextResponse.json({ ok: false, error: "program_not_found" }, { status: 404 });
 
   const origin = publicAppUrl(new URL(request.url).origin);
