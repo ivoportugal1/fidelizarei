@@ -234,7 +234,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         {active === "Visão geral" ? <Overview data={data} onGenerate={() => setShowGenerator(true)} /> :
           active === "QR Codes" ? <Codes data={data} baseUrl={baseUrl} codes={generatedCodes} selectedBatch={selectedBatch} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} onLoadBatch={loadBatch} /> :
           active === "Clientes" ? <Customers data={data} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
-          active === "Campanhas" ? <Campaigns data={data} /> :
+          active === "Campanhas" ? <Campaigns data={data} onCampaignsChange={(campaigns) => setData((current) => ({ ...current, campaigns }))} /> :
           active === "Personalizar cartão" ? <CardDesigner data={data} onSave={flash} onSettingsChange={(walletSettings) => setData((current) => ({ ...current, walletSettings }))} /> :
           <Rewards data={data} onRedeemReward={confirmRewardRedeemed} />}
       </section>
@@ -404,8 +404,110 @@ function Customers({ data, onRedeemReward, onRemoveCustomer }: { data: Dashboard
   }) : <tr><td colSpan={6}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
 }
 
-function Campaigns({ data }: { data: DashboardData }) {
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">CAMPANHA ATIVA</div><h2>{data.program.name}</h2><p>{data.program.pointsToReward} pontos liberam {data.program.rewardName}.</p></div></section><section className="metrics"><Metric value={String(data.program.pointsPerCode)} label="Ponto por QR" trend="Atual" /><Metric value={String(data.program.pointsToReward)} label="Meta" trend="Por recompensa" /><Metric value="Ativa" label="Status" trend="Recebendo resgates" /></section></div>;
+function Campaigns({ data, onCampaignsChange }: { data: DashboardData; onCampaignsChange: (campaigns: DashboardData["campaigns"]) => void }) {
+  type Campaign = DashboardData["campaigns"][number];
+  const emptyCampaign = { name: "", rewardName: "", pointsToReward: 7, pointsPerCode: 1, active: true };
+  const [campaigns, setCampaigns] = useState(data.campaigns);
+  const [drafts, setDrafts] = useState<Record<string, Campaign>>(Object.fromEntries(data.campaigns.map((campaign) => [campaign.id, campaign])));
+  const [newCampaign, setNewCampaign] = useState(emptyCampaign);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+
+  const syncCampaigns = (nextCampaigns: DashboardData["campaigns"]) => {
+    setCampaigns(nextCampaigns);
+    setDrafts(Object.fromEntries(nextCampaigns.map((campaign) => [campaign.id, campaign])));
+    onCampaignsChange(nextCampaigns);
+  };
+
+  const updateDraft = <K extends keyof Campaign>(id: string, key: K, value: Campaign[K]) => {
+    setDrafts((current) => ({ ...current, [id]: { ...current[id], [key]: value } }));
+  };
+
+  async function saveCampaign(id: string) {
+    const draft = drafts[id];
+    if (!draft) return;
+    setSavingId(id);
+    setMessage("");
+    const response = await fetch(`/api/campaigns/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    });
+    const body = await response.json().catch(() => ({ ok: false }));
+    setSavingId(null);
+    if (!response.ok || !body.ok) {
+      setMessage("Não consegui salvar a campanha. Confira nome, recompensa e metas.");
+      return;
+    }
+    syncCampaigns(campaigns.map((campaign) => campaign.id === id ? body.campaign : campaign));
+    setMessage("Campanha salva.");
+  }
+
+  async function createCampaign() {
+    setSavingId("new");
+    setMessage("");
+    const response = await fetch("/api/campaigns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newCampaign),
+    });
+    const body = await response.json().catch(() => ({ ok: false }));
+    setSavingId(null);
+    if (!response.ok || !body.ok) {
+      setMessage("Não consegui criar a campanha. Confira nome, recompensa e metas.");
+      return;
+    }
+    syncCampaigns([...campaigns, body.campaign]);
+    setNewCampaign(emptyCampaign);
+    setMessage("Campanha criada.");
+  }
+
+  return (
+    <div className="content">
+      <section className="section-intro">
+        <div>
+          <div className="eyebrow">CAMPANHAS</div>
+          <h2>Campanhas da loja</h2>
+          <p>Crie mais de uma campanha e edite meta, recompensa e pontos por QR.</p>
+        </div>
+      </section>
+      <section className="metrics">
+        <Metric value={String(campaigns.length)} label="Campanhas" trend="Cadastradas" />
+        <Metric value={String(campaigns.filter((campaign) => campaign.active).length)} label="Ativas" trend="Recebendo adesões/QR" />
+        <Metric value={String(data.program.pointsToReward)} label="Campanha principal" trend={data.program.name} />
+      </section>
+      <article className="panel activity">
+        <div className="panel-header"><div><h3>Nova campanha</h3><p>Exemplo: Compre 10 e ganhe 1, Clube VIP, Cashback de pontos.</p></div></div>
+        <div className="coupon-box">
+          <label>Nome<input value={newCampaign.name} onChange={(event) => setNewCampaign((current) => ({ ...current, name: event.target.value }))} placeholder="Programa de Fidelidade" /></label>
+          <label>Recompensa<input value={newCampaign.rewardName} onChange={(event) => setNewCampaign((current) => ({ ...current, rewardName: event.target.value }))} placeholder="Recompensa" /></label>
+          <label>Meta<input type="number" min={1} max={1000} value={newCampaign.pointsToReward} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsToReward: Number(event.target.value) }))} /></label>
+          <label>Pontos por QR<input type="number" min={1} max={100} value={newCampaign.pointsPerCode} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsPerCode: Number(event.target.value) }))} /></label>
+          <button className="button button-dark" disabled={savingId === "new"} onClick={createCampaign}>{savingId === "new" ? "Criando..." : "Criar campanha"}</button>
+        </div>
+        {message && <p className={message.includes("Não") ? "form-error" : "muted"}>{message}</p>}
+      </article>
+      <article className="panel activity">
+        <div className="panel-header"><div><h3>Campanhas existentes</h3><p>A campanha principal atual continua sendo usada nos QR Codes e Wallet.</p></div></div>
+        <table>
+          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
+          <tbody>{campaigns.length ? campaigns.map((campaign) => {
+            const draft = drafts[campaign.id] || campaign;
+            return (
+              <tr key={campaign.id}>
+                <td><input value={draft.name} onChange={(event) => updateDraft(campaign.id, "name", event.target.value)} /></td>
+                <td><input value={draft.rewardName} onChange={(event) => updateDraft(campaign.id, "rewardName", event.target.value)} /></td>
+                <td><input type="number" min={1} max={1000} value={draft.pointsToReward} onChange={(event) => updateDraft(campaign.id, "pointsToReward", Number(event.target.value))} /></td>
+                <td><input type="number" min={1} max={100} value={draft.pointsPerCode} onChange={(event) => updateDraft(campaign.id, "pointsPerCode", Number(event.target.value))} /></td>
+                <td><label className="inline-check"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft(campaign.id, "active", event.target.checked)} /> Ativa</label></td>
+                <td><button className="reward-action" disabled={savingId === campaign.id} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : "Salvar"}</button></td>
+              </tr>
+            );
+          }) : <tr><td colSpan={6}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
+        </table>
+      </article>
+    </div>
+  );
 }
 
 function Rewards({ data, onRedeemReward }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void }) {
