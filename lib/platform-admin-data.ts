@@ -63,7 +63,7 @@ type PlatformCompanyRow = {
 };
 
 function planAmount(interval: "monthly" | "yearly") {
-  const envName = interval === "yearly" ? "ASAAS_PLAN_YEARLY_AMOUNT" : "ASAAS_PLAN_MONTHLY_AMOUNT";
+  const envName = interval === "yearly" ? "BILLING_PLAN_YEARLY_AMOUNT" : "BILLING_PLAN_MONTHLY_AMOUNT";
   const fallback = interval === "yearly" ? 600 : 60;
   const amount = Number(process.env[envName] || fallback);
   return Number.isFinite(amount) && amount > 0 ? amount : fallback;
