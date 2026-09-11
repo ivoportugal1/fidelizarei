@@ -8,6 +8,7 @@ export default function SignupPage() {
   const [businessName, setBusinessName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [taxId, setTaxId] = useState("");
+  const [salespersonName, setSalespersonName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
@@ -22,7 +23,7 @@ export default function SignupPage() {
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ businessName, ownerName, taxId, email, password, billingInterval, couponCode }),
+      body: JSON.stringify({ businessName, ownerName, taxId, salespersonName, email, password, billingInterval, couponCode }),
     });
     const body = await response.json();
     setLoading(false);
@@ -43,6 +44,7 @@ export default function SignupPage() {
         <PlanOptions selectedPlan={billingInterval} onSelect={setBillingInterval} compact />
         <label>Cupom de desconto <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Digite seu cupom, se tiver" autoComplete="off" /></label>
         <label>Nome da empresa<input value={businessName} onChange={(event) => setBusinessName(event.target.value)} autoComplete="organization" /></label>
+        <label>Nome do vendedor que apresentou o sistema <input value={salespersonName} onChange={(event) => setSalespersonName(event.target.value)} placeholder="Opcional" autoComplete="off" /></label>
         <label>CPF ou CNPJ<input value={taxId} onChange={(event) => setTaxId(event.target.value)} inputMode="numeric" placeholder="Somente números" autoComplete="off" required /></label>
         <label>Seu nome<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} autoComplete="name" /></label>
         <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
