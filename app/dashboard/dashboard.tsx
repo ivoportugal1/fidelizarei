@@ -97,7 +97,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState("Visão geral");
   const [currentDateLabel, setCurrentDateLabel] = useState("FIDELIZAREI");
-  const [baseUrl, setBaseUrl] = useState("https://www.fidelizarei.com.br");
+  const [baseUrl, setBaseUrl] = useState("https://fidelizarei.com.br");
   const [quantity, setQuantity] = useState(25);
   const [showGenerator, setShowGenerator] = useState(false);
   const [toast, setToast] = useState("");
@@ -109,7 +109,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   useEffect(() => {
     setMounted(true);
     setCurrentDateLabel(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date()).toUpperCase());
-    setBaseUrl(window.location.origin.includes("fidelizarei.vercel.app") ? "https://www.fidelizarei.com.br" : window.location.origin);
+    setBaseUrl(window.location.origin.includes("fidelizarei.vercel.app") ? "https://fidelizarei.com.br" : window.location.origin);
   }, []);
 
   const flash = (message: string) => {
@@ -308,7 +308,7 @@ function Codes({
   onExport: () => void;
   onLoadBatch: (batch: QrBatch) => void;
 }) {
-  const preview = firstCode || "https://www.fidelizarei.com.br/r/GERADO-APOS-CLIQUE";
+  const preview = firstCode || "https://fidelizarei.com.br/r/GERADO-APOS-CLIQUE";
   const joinUrl = `${baseUrl}/join/${data.program.id}`;
   const batchUrl = selectedBatch ? `/api/codes/batches/${selectedBatch.id}` : "";
   return (
