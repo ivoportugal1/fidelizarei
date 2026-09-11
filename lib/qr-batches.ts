@@ -4,7 +4,7 @@ import { query } from "./database";
 import { hashCode } from "./redemption";
 
 export const MIN_POINT_QR_BATCH = 1;
-export const MAX_POINT_QR_BATCH = 500;
+export const MAX_POINT_QR_BATCH = 50;
 
 export type QrCodeItem = {
   id: string;
