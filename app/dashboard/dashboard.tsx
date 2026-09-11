@@ -16,7 +16,7 @@ type QrBatch = DashboardData["qrBatches"][number];
 type WalletSettings = DashboardData["walletSettings"];
 type PointTheme = WalletSettings["pointTheme"];
 const MIN_POINT_QR_BATCH = 1;
-const MAX_POINT_QR_BATCH = 500;
+const MAX_POINT_QR_BATCH = 50;
 
 function normalizeAssetUrl(value: string | null) {
   if (!value) return null;
@@ -68,8 +68,8 @@ const progressEmoji: Record<PointTheme, string> = {
   universal: "●",
 };
 
-const dashboardNavItems = ["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão"];
-const dashboardNavIcons = { "Visão geral": "▦", Clientes: "♙", Campanhas: "◌", "QR Codes": "▣", Recompensas: "♢", "Personalizar cartão": "✦" } as Record<string, string>;
+const dashboardNavItems = ["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão", "Perfil"];
+const dashboardNavIcons = { "Visão geral": "▦", Clientes: "♙", Campanhas: "◌", "QR Codes": "▣", Recompensas: "♢", "Personalizar cartão": "✦", Perfil: "☰" } as Record<string, string>;
 
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -257,6 +257,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           active === "Clientes" ? <Customers data={data} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
           active === "Campanhas" ? <Campaigns data={data} selectedCampaignId={selectedCampaign.id} onSelectCampaign={(campaignId) => { setSelectedCampaignId(campaignId); setGeneratedCodes([]); setSelectedBatch(null); flash("Campanha selecionada para QR Codes."); }} onCampaignsChange={(campaigns) => setData((current) => ({ ...current, campaigns }))} /> :
           active === "Personalizar cartão" ? <CardDesigner data={data} onSave={flash} onSettingsChange={(walletSettings) => setData((current) => ({ ...current, walletSettings }))} /> :
+          active === "Perfil" ? <ProfileSettings data={data} onSave={(profile) => { setData((current) => ({ ...current, user: { ...current.user, ...profile.user }, organization: { ...current.organization, ...profile.organization } })); flash("Perfil atualizado."); }} /> :
           <Rewards data={data} onRedeemReward={confirmRewardRedeemed} />}
       </section>
 
@@ -537,6 +538,77 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
             );
           }) : <tr><td colSpan={7}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
         </table>
+      </article>
+    </div>
+  );
+}
+
+function ProfileSettings({ data, onSave }: {
+  data: DashboardData;
+  onSave: (profile: { user: { name: string; email: string }; organization: { name: string; phone: string | null; salespersonName: string | null } }) => void;
+}) {
+  const [businessName, setBusinessName] = useState(data.organization.name);
+  const [ownerName, setOwnerName] = useState(data.user.name);
+  const [email, setEmail] = useState(data.user.email);
+  const [phone, setPhone] = useState(data.organization.phone || "");
+  const [salespersonName, setSalespersonName] = useState(data.organization.salespersonName || "");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function saveProfile() {
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessName, ownerName, email, phone, salespersonName, password }),
+    });
+    const body = await response.json().catch(() => ({ ok: false }));
+    setSaving(false);
+    if (!response.ok || !body.ok) {
+      setMessage(body.error === "email_already_exists"
+        ? "Este e-mail já está em uso por outra conta."
+        : body.error === "weak_password"
+          ? "A nova senha precisa ter pelo menos 8 caracteres."
+          : "Não consegui atualizar o perfil. Confira os dados.");
+      return;
+    }
+    setPassword("");
+    setMessage("Perfil salvo.");
+    onSave(body);
+  }
+
+  return (
+    <div className="content">
+      <section className="section-intro">
+        <div>
+          <div className="eyebrow">CONTA DA EMPRESA</div>
+          <h2>Perfil</h2>
+          <p>Atualize os dados da empresa, responsável, acesso e vendedor.</p>
+        </div>
+        <button className="button button-dark" disabled={saving} onClick={saveProfile}>{saving ? "Salvando..." : "Salvar perfil"}</button>
+      </section>
+      <article className="panel wallet-form profile-form">
+        <div className="wallet-form-section">
+          <h3>Dados comerciais</h3>
+          <div className="form-row">
+            <label>Nome da empresa<input value={businessName} onChange={(event) => setBusinessName(event.target.value)} /></label>
+            <label>Telefone da empresa<input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="WhatsApp/telefone" /></label>
+          </div>
+          <label>Vendedor que apresentou o sistema<input value={salespersonName} onChange={(event) => setSalespersonName(event.target.value)} placeholder="Opcional" /></label>
+          <label>CPF/CNPJ<input value={data.organization.taxId || "Não informado"} disabled /></label>
+        </div>
+        <div className="wallet-form-section">
+          <h3>Responsável e acesso</h3>
+          <div className="form-row">
+            <label>Nome do responsável<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} /></label>
+            <label>E-mail de login<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" /></label>
+          </div>
+          <label>Nova senha<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="Deixe em branco para manter a atual" /></label>
+          <small className="editor-note">Por segurança, a senha atual não é exibida. Preencha apenas se quiser trocar.</small>
+        </div>
+        {message && <p className={message === "Perfil salvo." ? "muted" : "form-error"}>{message}</p>}
       </article>
     </div>
   );
