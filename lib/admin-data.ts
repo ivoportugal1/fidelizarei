@@ -1,12 +1,16 @@
 import { query } from "./database";
 import { listQrBatches, type QrBatchSummary } from "./qr-batches";
 import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
+import { ensureOrganizationSchema } from "./organization-schema";
 
 export type DashboardData = {
   user: { name: string; email: string };
   organization: {
     id: string;
     name: string;
+    taxId: string | null;
+    phone: string | null;
+    salespersonName: string | null;
     plan: string;
     billingStatus: string;
     billingInterval: "monthly" | "yearly";
@@ -60,6 +64,9 @@ export type DashboardData = {
 type ContextRow = {
   organization_id: string;
   organization_name: string;
+  tax_id: string | null;
+  contact_phone: string | null;
+  salesperson_name: string | null;
   plan: string;
   program_id: string;
   program_name: string;
@@ -84,8 +91,9 @@ type CampaignRow = {
 };
 
 export async function getDashboardData(userId: string, userEmail: string, userName: string | null, origin = ""): Promise<DashboardData> {
+  await ensureOrganizationSchema();
   const context = await query<ContextRow>(`
-    select o.id as organization_id, o.name as organization_name, o.plan,
+    select o.id as organization_id, o.name as organization_name, o.tax_id, o.contact_phone, o.salesperson_name, o.plan,
            o.subscription_status, o.subscription_billing_interval, o.trial_ends_at,
            o.subscription_current_period_end,
            p.id as program_id, p.name as program_name, p.reward_name, p.points_to_reward,
@@ -148,6 +156,9 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
     organization: {
       id: row.organization_id,
       name: row.organization_name,
+      taxId: row.tax_id,
+      phone: row.contact_phone,
+      salespersonName: row.salesperson_name,
       plan: row.plan,
       billingStatus: row.subscription_status || "trialing",
       billingInterval: row.subscription_billing_interval || "monthly",
