@@ -164,11 +164,18 @@ function cleanCpfCnpj(value: string | null) {
   return (value || "").replace(/\D/g, "");
 }
 
+function asaasCpfCnpjForCustomer(value: string | null) {
+  const cleaned = cleanCpfCnpj(value);
+  if (cleaned) return cleaned;
+  if (process.env.ASAAS_ENV !== "production") return "11144477735";
+  throw new Error("customer_tax_id_required");
+}
+
 async function createAsaasCustomer(billing: BillingState & { taxId?: string | null }, userEmail: string) {
-  const cpfCnpj = cleanCpfCnpj(billing.taxId || null);
+  const cpfCnpj = asaasCpfCnpjForCustomer(billing.taxId || null);
   const search = new URLSearchParams();
   search.set("externalReference", billing.organizationId);
-  if (cpfCnpj) search.set("cpfCnpj", cpfCnpj);
+  search.set("cpfCnpj", cpfCnpj);
   const existing = await asaasRequest<AsaasList<AsaasCustomer>>(`/customers?${search.toString()}`);
   const customer = existing.data?.[0];
   if (customer?.id) return customer;
@@ -178,7 +185,7 @@ async function createAsaasCustomer(billing: BillingState & { taxId?: string | nu
     body: JSON.stringify({
       name: billing.organizationName,
       email: userEmail,
-      cpfCnpj: cpfCnpj || undefined,
+      cpfCnpj,
       externalReference: billing.organizationId,
     }),
   });
