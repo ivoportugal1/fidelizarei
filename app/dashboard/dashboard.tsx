@@ -104,6 +104,16 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
   const [loading, setLoading] = useState(false);
   const [generatedCodes, setGeneratedCodes] = useState<GeneratedCode[]>([]);
   const [selectedBatch, setSelectedBatch] = useState<QrBatch | null>(data.qrBatches[0] ?? null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(data.program.id);
+  const selectedCampaign = data.campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? data.campaigns[0] ?? {
+    id: data.program.id,
+    name: data.program.name,
+    rewardName: data.program.rewardName,
+    pointsToReward: data.program.pointsToReward,
+    pointsPerCode: data.program.pointsPerCode,
+    active: true,
+    createdAt: new Date().toISOString(),
+  };
   const firstCode = generatedCodes[0]?.url;
 
   useEffect(() => {
@@ -126,7 +136,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     const response = await fetch("/api/codes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ quantity }),
+      body: JSON.stringify({ quantity, programId: selectedCampaign.id }),
     });
     const body = await response.json();
     setLoading(false);
@@ -139,7 +149,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
     setData((current) => ({ ...current, qrBatches: [body.batch, ...current.qrBatches.filter((batch) => batch.id !== body.batch.id)].slice(0, 6) }));
     setShowGenerator(false);
     setActive("QR Codes");
-    flash(`${body.codes.length.toLocaleString("pt-BR")} QR Codes reais gerados.`);
+    flash(`${body.codes.length.toLocaleString("pt-BR")} QR Codes gerados para ${selectedCampaign.name}.`);
   }
 
   async function loadBatch(batch: QrBatch) {
@@ -232,9 +242,9 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
         </header>
 
         {active === "Visão geral" ? <Overview data={data} onGenerate={() => setShowGenerator(true)} /> :
-          active === "QR Codes" ? <Codes data={data} baseUrl={baseUrl} codes={generatedCodes} selectedBatch={selectedBatch} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} onLoadBatch={loadBatch} /> :
+          active === "QR Codes" ? <Codes data={data} selectedCampaign={selectedCampaign} baseUrl={baseUrl} codes={generatedCodes} selectedBatch={selectedBatch} firstCode={firstCode} onGenerate={() => setShowGenerator(true)} onExport={exportCsv} onLoadBatch={loadBatch} /> :
           active === "Clientes" ? <Customers data={data} onRedeemReward={confirmRewardRedeemed} onRemoveCustomer={removeCustomer} /> :
-          active === "Campanhas" ? <Campaigns data={data} onCampaignsChange={(campaigns) => setData((current) => ({ ...current, campaigns }))} /> :
+          active === "Campanhas" ? <Campaigns data={data} selectedCampaignId={selectedCampaign.id} onSelectCampaign={(campaignId) => { setSelectedCampaignId(campaignId); setGeneratedCodes([]); setSelectedBatch(null); flash("Campanha selecionada para QR Codes."); }} onCampaignsChange={(campaigns) => setData((current) => ({ ...current, campaigns }))} /> :
           active === "Personalizar cartão" ? <CardDesigner data={data} onSave={flash} onSettingsChange={(walletSettings) => setData((current) => ({ ...current, walletSettings }))} /> :
           <Rewards data={data} onRedeemReward={confirmRewardRedeemed} />}
       </section>
@@ -245,7 +255,10 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
             <button className="modal-close" onClick={() => setShowGenerator(false)}>×</button>
             <p className="eyebrow">NOVA REMESSA</p>
             <h2>Gerar QR Codes</h2>
-            <p className="muted">Cada código é único, vale {data.program.pointsPerCode} ponto e só pode ser usado uma vez.</p>
+            <p className="muted">Campanha: {selectedCampaign.name}. Cada código é único, vale {selectedCampaign.pointsPerCode} ponto e só pode ser usado uma vez.</p>
+            <label>Campanha<select value={selectedCampaign.id} onChange={(event) => { setSelectedCampaignId(event.target.value); setGeneratedCodes([]); setSelectedBatch(null); }}>
+              {data.campaigns.filter((campaign) => campaign.active).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+            </select></label>
             <label>Quantidade<input type="number" min={MIN_POINT_QR_BATCH} max={MAX_POINT_QR_BATCH} value={quantity} onChange={(event) => setQuantity(Number(event.target.value))} /></label>
             <small className="muted">Mínimo {MIN_POINT_QR_BATCH}, máximo {MAX_POINT_QR_BATCH} por lote.</small>
             <button className="button button-coral modal-submit" disabled={loading} onClick={generateCodes}>{loading ? "Gerando..." : `Gerar ${quantity.toLocaleString("pt-BR")} códigos`}</button>
@@ -291,6 +304,7 @@ function codeStatusLabel(status: GeneratedCode["status"]) {
 
 function Codes({
   data,
+  selectedCampaign,
   baseUrl,
   codes,
   selectedBatch,
@@ -300,6 +314,7 @@ function Codes({
   onLoadBatch,
 }: {
   data: DashboardData;
+  selectedCampaign: DashboardData["campaigns"][number];
   baseUrl: string;
   codes: GeneratedCode[];
   selectedBatch: QrBatch | null;
@@ -309,7 +324,7 @@ function Codes({
   onLoadBatch: (batch: QrBatch) => void;
 }) {
   const preview = firstCode || "https://fidelizarei.com.br/r/GERADO-APOS-CLIQUE";
-  const joinUrl = `${baseUrl}/join/${data.program.id}`;
+  const joinUrl = `${baseUrl}/join/${selectedCampaign.id}`;
   const batchUrl = selectedBatch ? `/api/codes/batches/${selectedBatch.id}` : "";
   return (
     <div className="content">
@@ -317,7 +332,7 @@ function Codes({
         <div>
           <div className="eyebrow">ADESÃO E PONTUAÇÃO</div>
           <h2>QR Codes</h2>
-          <p>Use o QR fixo para cadastrar clientes. Use QR de pontuação somente para compras.</p>
+          <p>Campanha selecionada: <strong>{selectedCampaign.name}</strong>. Use o QR fixo para adesão e os QRs únicos para pontuação dessa campanha.</p>
         </div>
         <div className="top-actions">
           <button className="button button-light" disabled={!codes.length} onClick={onExport}>Exportar CSV</button>
@@ -327,7 +342,7 @@ function Codes({
         </div>
       </section>
       <section className="metrics">
-        <Metric value="Fixo" label="QR de adesão" trend="Não pontua" />
+        <Metric value="Fixo" label="QR de adesão" trend={selectedCampaign.name} />
         <Metric value={formatNumber(data.metrics.activeCodes)} label="Pontuação disponível" trend="Uso único" />
         <Metric value={formatNumber(data.metrics.redeemedCodes)} label="Pontuação usada" trend="Já resgatados" />
         <Metric value={formatNumber(codes.length)} label={selectedBatch ? "Lote carregado" : "Gerados agora"} trend="Exportáveis" />
@@ -336,8 +351,8 @@ function Codes({
         <article className="panel empty-qr">
           <QrPreview value={joinUrl} />
           <div>
-            <h3>QR de adesão fixo</h3>
-            <p>Use este QR para cadastrar novos clientes. Ele não adiciona pontos e pode ficar no balcão, mesa, embalagem ou Instagram.</p>
+            <h3>QR de adesão da campanha</h3>
+            <p>Use este QR para cadastrar clientes na campanha {selectedCampaign.name}. Ele não adiciona pontos e pode ficar no balcão, mesa, embalagem ou Instagram.</p>
             <div className="qr-actions">
               <button className="button button-light" onClick={() => navigator.clipboard?.writeText(joinUrl)}>Copiar link</button>
               <button className="button button-light" onClick={() => downloadQr(joinUrl, "qr-adesao-fidelizarei.png")}>Baixar QR</button>
@@ -404,7 +419,12 @@ function Customers({ data, onRedeemReward, onRemoveCustomer }: { data: Dashboard
   }) : <tr><td colSpan={6}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
 }
 
-function Campaigns({ data, onCampaignsChange }: { data: DashboardData; onCampaignsChange: (campaigns: DashboardData["campaigns"]) => void }) {
+function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChange }: {
+  data: DashboardData;
+  selectedCampaignId: string;
+  onSelectCampaign: (campaignId: string) => void;
+  onCampaignsChange: (campaigns: DashboardData["campaigns"]) => void;
+}) {
   type Campaign = DashboardData["campaigns"][number];
   const emptyCampaign = { name: "", rewardName: "", pointsToReward: 7, pointsPerCode: 1, active: true };
   const [campaigns, setCampaigns] = useState(data.campaigns);
@@ -468,13 +488,13 @@ function Campaigns({ data, onCampaignsChange }: { data: DashboardData; onCampaig
         <div>
           <div className="eyebrow">CAMPANHAS</div>
           <h2>Campanhas da loja</h2>
-          <p>Crie mais de uma campanha e edite meta, recompensa e pontos por QR.</p>
+          <p>Selecione uma campanha para gerar o QR de adesão e os QR Codes de pontuação dela.</p>
         </div>
       </section>
       <section className="metrics">
         <Metric value={String(campaigns.length)} label="Campanhas" trend="Cadastradas" />
         <Metric value={String(campaigns.filter((campaign) => campaign.active).length)} label="Ativas" trend="Recebendo adesões/QR" />
-        <Metric value={String(data.program.pointsToReward)} label="Campanha principal" trend={data.program.name} />
+        <Metric value={campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || data.program.name} label="Selecionada para QR" trend="Adesão + pontuação" />
       </section>
       <article className="panel activity">
         <div className="panel-header"><div><h3>Nova campanha</h3><p>Exemplo: Compre 10 e ganhe 1, Clube VIP, Cashback de pontos.</p></div></div>
@@ -488,9 +508,9 @@ function Campaigns({ data, onCampaignsChange }: { data: DashboardData; onCampaig
         {message && <p className={message.includes("Não") ? "form-error" : "muted"}>{message}</p>}
       </article>
       <article className="panel activity">
-        <div className="panel-header"><div><h3>Campanhas existentes</h3><p>A campanha principal atual continua sendo usada nos QR Codes e Wallet.</p></div></div>
+        <div className="panel-header"><div><h3>Campanhas existentes</h3><p>Escolha qual campanha será usada para gerar QR de adesão e pontuação.</p></div></div>
         <table>
-          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
+          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>STATUS</th><th>USAR</th><th>AÇÃO</th></tr></thead>
           <tbody>{campaigns.length ? campaigns.map((campaign) => {
             const draft = drafts[campaign.id] || campaign;
             return (
@@ -500,10 +520,11 @@ function Campaigns({ data, onCampaignsChange }: { data: DashboardData; onCampaig
                 <td><input type="number" min={1} max={1000} value={draft.pointsToReward} onChange={(event) => updateDraft(campaign.id, "pointsToReward", Number(event.target.value))} /></td>
                 <td><input type="number" min={1} max={100} value={draft.pointsPerCode} onChange={(event) => updateDraft(campaign.id, "pointsPerCode", Number(event.target.value))} /></td>
                 <td><label className="inline-check"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft(campaign.id, "active", event.target.checked)} /> Ativa</label></td>
+                <td>{selectedCampaignId === campaign.id ? <span className="status ready">Selecionada</span> : <button className="link-button" disabled={!draft.active} onClick={() => onSelectCampaign(campaign.id)}>Usar nos QRs</button>}</td>
                 <td><button className="reward-action" disabled={savingId === campaign.id} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : "Salvar"}</button></td>
               </tr>
             );
-          }) : <tr><td colSpan={6}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
+          }) : <tr><td colSpan={7}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
         </table>
       </article>
     </div>
