@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { query } from "./database";
+import { publicAppUrl } from "./public-url";
 
 export type BillingStatus = "trialing" | "pending" | "active" | "past_due" | "canceled" | "expired";
 export type BillingInterval = "monthly" | "yearly";
@@ -53,7 +54,7 @@ type AsaasPayment = {
 };
 
 function appUrl(origin?: string) {
-  return process.env.NEXT_PUBLIC_APP_URL || origin || "http://localhost:3000";
+  return publicAppUrl(origin);
 }
 
 function asaasToken() {
@@ -175,7 +176,6 @@ async function createAsaasCustomer(billing: BillingState & { taxId?: string | nu
   const cpfCnpj = asaasCpfCnpjForCustomer(billing.taxId || null);
   const search = new URLSearchParams();
   search.set("externalReference", billing.organizationId);
-  search.set("cpfCnpj", cpfCnpj);
   const existing = await asaasRequest<AsaasList<AsaasCustomer>>(`/customers?${search.toString()}`);
   const customer = existing.data?.[0];
   if (customer?.id) return customer;
