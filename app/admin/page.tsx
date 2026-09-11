@@ -131,7 +131,7 @@ export default async function PlatformAdminPage() {
   return (
     <main className="platform-admin">
       <header className="platform-admin-hero">
-        <a className="brand" href="/">fideliza<span>.</span></a>
+        <a className="brand" href="/">Fidelizarei</a>
         <div>
           <p className="eyebrow">ADMIN FIDELIZAREI</p>
           <h1>Empresas e assinaturas</h1>
