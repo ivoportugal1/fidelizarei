@@ -39,6 +39,7 @@ type AppleWalletContext = {
   full_name: string | null;
   phone_e164: string | null;
   customer_created_at: Date;
+  last_reward_redeemed_at: Date | null;
   organization_id: string;
   organization_name: string;
   program_id: string;
@@ -54,6 +55,16 @@ type AppleCertificates = {
   signerCert: string;
   signerKey: string;
   wwdr: string;
+};
+
+type PassField = {
+  key: string;
+  label: string;
+  value: string | number;
+  dateStyle?: "PKDateStyleNone" | "PKDateStyleShort" | "PKDateStyleMedium" | "PKDateStyleLong" | "PKDateStyleFull";
+  timeStyle?: "PKDateStyleNone" | "PKDateStyleShort" | "PKDateStyleMedium" | "PKDateStyleLong" | "PKDateStyleFull";
+  textAlignment?: "PKTextAlignmentLeft" | "PKTextAlignmentCenter" | "PKTextAlignmentRight" | "PKTextAlignmentNatural";
+  changeMessage?: string;
 };
 
 function configured() {
@@ -120,6 +131,22 @@ function formatValidUntil(date: Date) {
   const valid = new Date(date);
   valid.setFullYear(valid.getFullYear() + 1);
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(valid);
+}
+
+function validUntilDate(date: Date) {
+  const valid = new Date(date);
+  valid.setFullYear(valid.getFullYear() + 1);
+  return valid;
+}
+
+function passDateValue(date: Date) {
+  return date.toISOString();
+}
+
+function walletStatus(input: { points: number; goal: number; rewardsAvailable: number; lastRewardRedeemedAt: Date | null }) {
+  if (input.rewardsAvailable > 0 || input.points >= input.goal) return "Prêmio disponível";
+  if (input.lastRewardRedeemedAt && input.points === 0 && input.rewardsAvailable === 0) return "Resgatado";
+  return "Ativo";
 }
 
 function progressText(theme: string, current: number, total: number) {
@@ -419,17 +446,25 @@ function passJson(input: {
   serialNumber: string;
   organizationName: string;
   description: string;
+  logoText: string;
   backgroundColor: string;
   foregroundColor: string;
   labelColor: string;
   webServiceURL: string;
   authenticationToken: string;
   storeCard: {
-    headerFields: Array<{ key: string; label: string; value: string }>;
-    primaryFields: Array<{ key: string; label: string; value: string }>;
-    secondaryFields: Array<{ key: string; label: string; value: string }>;
-    auxiliaryFields: Array<{ key: string; label: string; value: string }>;
-    backFields: Array<{ key: string; label: string; value: string }>;
+    headerFields?: PassField[];
+    primaryFields?: PassField[];
+    secondaryFields?: PassField[];
+    auxiliaryFields?: PassField[];
+    backFields?: PassField[];
+  };
+  posterGeneric: {
+    headerFields?: PassField[];
+    primaryFields?: PassField[];
+    footerFields?: PassField[];
+    backFields?: PassField[];
+    additionalInfoFields?: PassField[];
   };
 }) {
   const passTypeIdentifier = process.env.APPLE_PASS_TYPE_IDENTIFIER;
@@ -443,12 +478,14 @@ function passJson(input: {
     serialNumber: input.serialNumber,
     organizationName: input.organizationName,
     description: input.description,
+    logoText: input.logoText,
     backgroundColor: input.backgroundColor,
     foregroundColor: input.foregroundColor,
     labelColor: input.labelColor,
     webServiceURL: input.webServiceURL,
     authenticationToken: input.authenticationToken,
     sharingProhibited: false,
+    posterGeneric: input.posterGeneric,
     storeCard: input.storeCard,
   };
 }
@@ -458,6 +495,11 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
 
   const result = await query<AppleWalletContext>(`
     select c.id as customer_id, c.full_name, c.phone_e164, c.created_at as customer_created_at,
+           (
+             select max(rr.created_at)
+             from reward_redemptions rr
+             where rr.customer_id = c.id and rr.program_id = p.id
+           ) as last_reward_redeemed_at,
            o.id as organization_id, o.name as organization_name,
            p.id as program_id, p.name as program_name, p.reward_name, p.points_to_reward,
            p.pass_background_color,
@@ -488,24 +530,27 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const currentPoints = Number(context.points);
   const pointsGoal = Number(settings.pointsGoal || context.points_to_reward);
   const remaining = Math.max(pointsGoal - currentPoints, 0);
-  const completed = currentPoints >= pointsGoal || Number(context.rewards_available) > 0;
-  const statusText = completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}`;
+  const rewardsAvailable = Number(context.rewards_available);
+  const completed = currentPoints >= pointsGoal || rewardsAvailable > 0;
+  const passStatus = walletStatus({
+    points: currentPoints,
+    goal: pointsGoal,
+    rewardsAvailable,
+    lastRewardRedeemedAt: context.last_reward_redeemed_at,
+  });
+  const statusText = completed ? settings.completedMessage : passStatus === "Resgatado" ? "Prêmio resgatado" : `Faltam ${remaining} ${settings.progressLabel}`;
+  const progressValue = `${currentPoints} de ${pointsGoal}`;
+  const validUntil = validUntilDate(new Date(context.customer_created_at));
   const token = passAuthToken(serialNumber);
   const certificates = extractCertificatesFromP12();
   const brandLogo = await getFallbackLogo();
-  const merchantLogo = await fetchPngAsset(settings.logoUrl) ?? brandLogo;
   const appIcons = await buildAppleIconImages(brandLogo);
-  const logoBadge = await buildAppleLogoBadgeImages(merchantLogo);
-  const stripImages = await buildAppleStripImages({
-    settings,
-    currentPoints,
-    pointsGoal,
-  });
+  const logoBadge = await buildAppleLogoBadgeImages(brandLogo);
   const backFields = [
     {
       key: "back_status",
       label: "Status",
-      value: completed ? "Recompensa disponível" : "Ativo",
+      value: passStatus,
     },
     {
       key: "back_valid_until",
@@ -540,7 +585,7 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     {
       key: "back_progress",
       label: "Progresso",
-      value: `${currentPoints} de ${pointsGoal} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
+      value: `${progressValue} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
     },
     {
       key: "back_rewards",
@@ -582,25 +627,70 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const pass = new PKPass({
     "pass.json": Buffer.from(JSON.stringify(passJson({
       serialNumber,
-      organizationName: settings.businessName,
+      organizationName: "Fidelizarei",
       description: settings.programDescription,
+      logoText: shortField(settings.businessName, 28),
       backgroundColor: hexToRgb(settings.primaryColor),
       foregroundColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
-      labelColor: hexToRgb(settings.secondaryColor),
+      labelColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
+      posterGeneric: {
+        headerFields: [],
+        primaryFields: [
+          {
+            key: "progress",
+            label: "PROGRESSO",
+            value: progressValue,
+            textAlignment: "PKTextAlignmentLeft",
+            changeMessage: "Seu progresso agora é %@.",
+          },
+          {
+            key: "customer",
+            label: "CLIENTE",
+            value: shortField(customerName, 24),
+            textAlignment: "PKTextAlignmentRight",
+          },
+          {
+            key: "status",
+            label: "STATUS",
+            value: passStatus,
+            textAlignment: "PKTextAlignmentLeft",
+            changeMessage: "Status atualizado para %@.",
+          },
+          {
+            key: "valid_until",
+            label: "VALIDADE",
+            value: passDateValue(validUntil),
+            dateStyle: "PKDateStyleShort",
+            timeStyle: "PKDateStyleNone",
+            textAlignment: "PKTextAlignmentRight",
+          },
+        ],
+        footerFields: [],
+        backFields,
+        additionalInfoFields: [
+          {
+            key: "program",
+            label: "Programa",
+            value: settings.programDescription,
+          },
+          {
+            key: "reward",
+            label: "Recompensa",
+            value: settings.rewardText,
+          },
+        ],
+      },
       storeCard: {
-        headerFields: [{
-          key: "progress",
-          label: settings.progressLabel.toUpperCase(),
-          value: `${currentPoints}/${pointsGoal}`,
-        }],
+        headerFields: [],
         primaryFields: [],
         secondaryFields: [
           {
             key: "progress_text",
             label: "PROGRESSO",
-            value: `${currentPoints}/${pointsGoal} ${settings.progressLabel}`,
+            value: progressValue,
+            changeMessage: "Seu progresso agora é %@.",
           },
           {
             key: "customer",
@@ -612,12 +702,15 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
           {
             key: "status",
             label: "STATUS",
-            value: completed ? "Recompensa disponível" : "Ativo",
+            value: passStatus,
+            changeMessage: "Status atualizado para %@.",
           },
           {
-            key: "reward",
-            label: "RECOMPENSA",
-            value: shortField(settings.rewardText, 24),
+            key: "valid_until",
+            label: "VALIDADE",
+            value: passDateValue(validUntil),
+            dateStyle: "PKDateStyleShort",
+            timeStyle: "PKDateStyleNone",
           },
         ],
         backFields,
@@ -629,9 +722,6 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "logo.png": logoBadge.x1,
     "logo@2x.png": logoBadge.x2,
     "logo@3x.png": logoBadge.x3,
-    "strip.png": stripImages.x1,
-    "strip@2x.png": stripImages.x2,
-    "strip@3x.png": stripImages.x3,
   }, certificates);
   await query(`
     insert into wallet_passes (customer_id, program_id, platform, serial_number, authentication_token, updated_at)
