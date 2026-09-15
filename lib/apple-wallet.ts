@@ -421,6 +421,23 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
   return { x1, x2, x3 };
 }
 
+async function buildAppleLogoImages(logo: Buffer) {
+  const makeLogo = async (scale: number) => sharp(logo)
+    .resize(160 * scale, 50 * scale, { fit: "inside", position: "left", withoutEnlargement: true })
+    .extend({
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+
+  const [x1, x2, x3] = await Promise.all([makeLogo(1), makeLogo(2), makeLogo(3)]);
+  return { x1, x2, x3 };
+}
+
 async function hasTransparentCorners(logo: Buffer) {
   try {
     const size = 24;
@@ -459,13 +476,6 @@ function passJson(input: {
     auxiliaryFields?: PassField[];
     backFields?: PassField[];
   };
-  posterGeneric: {
-    headerFields?: PassField[];
-    primaryFields?: PassField[];
-    footerFields?: PassField[];
-    backFields?: PassField[];
-    additionalInfoFields?: PassField[];
-  };
 }) {
   const passTypeIdentifier = process.env.APPLE_PASS_TYPE_IDENTIFIER;
   const teamIdentifier = process.env.APPLE_TEAM_IDENTIFIER;
@@ -485,7 +495,6 @@ function passJson(input: {
     webServiceURL: input.webServiceURL,
     authenticationToken: input.authenticationToken,
     sharingProhibited: false,
-    posterGeneric: input.posterGeneric,
     storeCard: input.storeCard,
   };
 }
@@ -545,7 +554,12 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const certificates = extractCertificatesFromP12();
   const brandLogo = await getFallbackLogo();
   const appIcons = await buildAppleIconImages(brandLogo);
-  const logoBadge = await buildAppleLogoBadgeImages(brandLogo);
+  const fixedBrandLogo = await buildAppleLogoImages(brandLogo);
+  const stripImages = await buildAppleStripImages({
+    settings,
+    currentPoints,
+    pointsGoal,
+  });
   const backFields = [
     {
       key: "back_status",
@@ -635,56 +649,18 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       labelColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
-      posterGeneric: {
-        headerFields: [],
-        primaryFields: [
-          {
-            key: "progress",
-            label: "PROGRESSO",
-            value: progressValue,
-            textAlignment: "PKTextAlignmentLeft",
-            changeMessage: "Seu progresso agora é %@.",
-          },
-          {
-            key: "customer",
-            label: "CLIENTE",
-            value: shortField(customerName, 24),
-            textAlignment: "PKTextAlignmentRight",
-          },
-          {
-            key: "status",
-            label: "STATUS",
-            value: passStatus,
-            textAlignment: "PKTextAlignmentLeft",
-            changeMessage: "Status atualizado para %@.",
-          },
-          {
-            key: "valid_until",
-            label: "VALIDADE",
-            value: passDateValue(validUntil),
-            dateStyle: "PKDateStyleShort",
-            timeStyle: "PKDateStyleNone",
-            textAlignment: "PKTextAlignmentRight",
-          },
-        ],
-        footerFields: [],
-        backFields,
-        additionalInfoFields: [
-          {
-            key: "program",
-            label: "Programa",
-            value: settings.programDescription,
-          },
-          {
-            key: "reward",
-            label: "Recompensa",
-            value: settings.rewardText,
-          },
-        ],
-      },
       storeCard: {
-        headerFields: [],
-        primaryFields: [],
+        headerFields: [{
+          key: "progress",
+          label: settings.progressLabel.toUpperCase(),
+          value: progressValue,
+          changeMessage: "Seu progresso agora é %@.",
+        }],
+        primaryFields: [{
+          key: "program",
+          label: shortField(settings.programDescription, 28).toUpperCase(),
+          value: shortField(settings.rewardTitle || settings.rewardText, 34),
+        }],
         secondaryFields: [
           {
             key: "progress_text",
@@ -719,9 +695,12 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     "icon.png": appIcons.x1,
     "icon@2x.png": appIcons.x2,
     "icon@3x.png": appIcons.x3,
-    "logo.png": logoBadge.x1,
-    "logo@2x.png": logoBadge.x2,
-    "logo@3x.png": logoBadge.x3,
+    "logo.png": fixedBrandLogo.x1,
+    "logo@2x.png": fixedBrandLogo.x2,
+    "logo@3x.png": fixedBrandLogo.x3,
+    "strip.png": stripImages.x1,
+    "strip@2x.png": stripImages.x2,
+    "strip@3x.png": stripImages.x3,
   }, certificates);
   await query(`
     insert into wallet_passes (customer_id, program_id, platform, serial_number, authentication_token, updated_at)
