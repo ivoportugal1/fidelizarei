@@ -423,7 +423,7 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
 
 async function buildAppleLogoImages(logo: Buffer) {
   const makeLogo = async (scale: number) => sharp(logo)
-    .resize(160 * scale, 50 * scale, { fit: "inside", position: "left", withoutEnlargement: true })
+    .resize(115 * scale, 36 * scale, { fit: "inside", position: "left", withoutEnlargement: true })
     .extend({
       top: 0,
       bottom: 0,
@@ -650,17 +650,8 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
       storeCard: {
-        headerFields: [{
-          key: "progress",
-          label: settings.progressLabel.toUpperCase(),
-          value: progressValue,
-          changeMessage: "Seu progresso agora é %@.",
-        }],
-        primaryFields: [{
-          key: "program",
-          label: shortField(settings.programDescription, 28).toUpperCase(),
-          value: shortField(settings.rewardTitle || settings.rewardText, 34),
-        }],
+        headerFields: [],
+        primaryFields: [],
         secondaryFields: [
           {
             key: "progress_text",
