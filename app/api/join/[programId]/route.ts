@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createCustomerSession, readCustomerSession } from "@/lib/customer-session";
 import { query, transaction } from "@/lib/database";
+import { hashCpf, isValidCpf, normalizeCpf } from "@/lib/customer-cpf";
+import { ensureLoyaltySchema } from "@/lib/loyalty-schema";
 
 export const runtime = "nodejs";
 
@@ -13,12 +15,13 @@ type ProgramRow = {
 };
 
 async function getProgram(programId: string) {
+  await ensureLoyaltySchema();
   const result = await query<ProgramRow>(`
     select o.id as organization_id, o.name as organization_name,
            p.id as program_id, p.name as program_name
     from loyalty_programs p
     join organizations o on o.id = p.organization_id
-    where p.id = $1 and p.active = true
+    where p.id = $1 and p.active = true and (p.valid_until is null or p.valid_until >= current_date)
     limit 1`, [programId]);
   return result.rows[0] ?? null;
 }
@@ -55,24 +58,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const program = await getProgram(programId);
   if (!program) return NextResponse.json({ ok: false, error: "program_not_found" }, { status: 404 });
 
-  const body = await request.json().catch(() => ({})) as { firstName?: string; lastName?: string; phone?: string };
+  const body = await request.json().catch(() => ({})) as { firstName?: string; lastName?: string; phone?: string; cpf?: string };
   const firstName = body.firstName?.trim();
   const lastName = body.lastName?.trim();
   const phone = body.phone?.trim();
+  const cpf = normalizeCpf(body.cpf || "");
   if (!firstName || !lastName) return NextResponse.json({ ok: false, error: "invalid_name" }, { status: 400 });
-  if (!phone || phone.length < 8) return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
+  if (!isValidCpf(cpf)) return NextResponse.json({ ok: false, error: "invalid_cpf" }, { status: 400 });
+  if (phone && phone.replace(/\D/g, "").length < 8) return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
+  const cpfHash = hashCpf(cpf);
 
   const customer = await transaction(async (client) => {
     const customerResult = await client.query<{ id: string }>(`
-      insert into customers (organization_id, phone_e164, first_name, last_name, full_name, status, deactivated_at)
-      values ($1, $2, $3, $4, $5, 'active', null)
-      on conflict (organization_id, phone_e164) do update set
+      insert into customers (organization_id, phone_e164, first_name, last_name, full_name, cpf_hash, status, deactivated_at)
+      values ($1, $2, $3, $4, $5, $6, 'active', null)
+      on conflict (organization_id, cpf_hash) where cpf_hash is not null do update set
+        phone_e164 = coalesce(excluded.phone_e164, customers.phone_e164),
         first_name = excluded.first_name,
         last_name = excluded.last_name,
         full_name = excluded.full_name,
         status = 'active',
         deactivated_at = null
-      returning id`, [program.organization_id, phone, firstName, lastName, `${firstName} ${lastName}`]);
+      returning id`, [program.organization_id, phone || null, firstName, lastName, `${firstName} ${lastName}`, cpfHash]);
     const row = customerResult.rows[0];
     await client.query(`
       insert into loyalty_balances (customer_id, program_id, points, rewards_available)
