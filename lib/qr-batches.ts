@@ -101,6 +101,7 @@ export async function getUserProgramContext(userId: string, programId?: string |
     join loyalty_programs p on p.organization_id = o.id
     where m.user_id = $1
       and p.active = true
+      and (p.valid_until is null or p.valid_until >= current_date)
       and ($2::uuid is null or p.id = $2::uuid)
     order by o.created_at asc, p.created_at asc
     limit 1`, [userId, programId || null]);
