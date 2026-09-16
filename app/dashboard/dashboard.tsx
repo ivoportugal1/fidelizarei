@@ -418,10 +418,22 @@ function Codes({
 }
 
 function Customers({ data, onRedeemReward, onRemoveCustomer }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void; onRemoveCustomer: (customerId: string, customerName: string) => void }) {
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por adesão ao programa.</p></div></section><article className="panel activity"><table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>PROGRESSO</th><th>STATUS</th><th>CADASTRO</th><th>AÇÃO</th></tr></thead><tbody>{data.customers.length ? data.customers.map((customer) => {
+  const [cpf, setCpf] = useState("");
+  const [found, setFound] = useState<DashboardData["customers"][number] | null | undefined>(undefined);
+  const [searchError, setSearchError] = useState("");
+  const visibleCustomers = found === undefined ? data.customers : found ? [found] : [];
+  async function filterByCpf() {
+    setSearchError(""); setFound(undefined);
+    const response = await fetch(`/api/customers?cpf=${encodeURIComponent(cpf)}`);
+    const body = await response.json().catch(() => ({ ok: false }));
+    if (!response.ok || !body.ok) { setSearchError("Informe um CPF válido."); return; }
+    setFound(body.customer ? { ...body.customer, points: 0, rewards: 0, updatedAt: null } : null);
+    if (!body.customer) setSearchError("Nenhum cliente encontrado com este CPF.");
+  }
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por adesão ao programa.</p></div></section><article className="panel activity"><div className="panel-header"><div><h3>Buscar cliente</h3><p>Use o CPF para localizar um cadastro sem expor esse dado na lista.</p></div><div className="table-actions"><input value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" placeholder="CPF" /><button className="button button-dark" onClick={filterByCpf}>Filtrar</button><button className="link-button" onClick={() => { setCpf(""); setFound(undefined); setSearchError(""); }}>Limpar</button></div></div>{searchError && <p className="form-error">{searchError}</p>}<table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>PROGRESSO</th><th>STATUS</th><th>CADASTRO</th><th>AÇÃO</th></tr></thead><tbody>{visibleCustomers.length ? visibleCustomers.map((customer) => {
     const status = customer.status === "inactive" ? "Inativo" : customer.rewards > 0 ? "Recompensa disponível" : "Ativo";
     return <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td className="date">{customer.phone || "—"}</td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.status === "inactive" ? "status" : customer.rewards > 0 ? "status ready" : "status"}>{status}</span></td><td className="date">{formatDate(customer.createdAt)}</td><td className="table-actions">{customer.status === "active" && customer.rewards > 0 && <button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button>}{customer.status === "active" && <button className="link-button danger" onClick={() => onRemoveCustomer(customer.id, customer.name)}>Excluir cliente</button>}</td></tr>;
-  }) : <tr><td colSpan={6}>Nenhum cliente cadastrado ainda.</td></tr>}</tbody></table></article></div>;
+  }) : <tr><td colSpan={6}>{found === null ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>}</tbody></table></article></div>;
 }
 
 function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChange }: {
@@ -431,7 +443,7 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
   onCampaignsChange: (campaigns: DashboardData["campaigns"]) => void;
 }) {
   type Campaign = DashboardData["campaigns"][number];
-  const emptyCampaign = { name: "", rewardName: "", pointsToReward: 7, pointsPerCode: 1, active: true };
+  const emptyCampaign = { name: "", rewardName: "", pointsToReward: 7, pointsPerCode: 1, validUntil: "", active: true };
   const [campaigns, setCampaigns] = useState(data.campaigns);
   const [drafts, setDrafts] = useState<Record<string, Campaign>>(Object.fromEntries(data.campaigns.map((campaign) => [campaign.id, campaign])));
   const [newCampaign, setNewCampaign] = useState(emptyCampaign);
@@ -487,6 +499,22 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
     setMessage("Campanha criada.");
   }
 
+  async function deleteCampaign(id: string, name: string) {
+    if (!window.confirm(`Apagar a campanha “${name}”? Campanhas com clientes ou QR Codes não podem ser apagadas; nesse caso, desative-a.`)) return;
+    setSavingId(id);
+    const response = await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+    const body = await response.json().catch(() => ({ ok: false }));
+    setSavingId(null);
+    if (!response.ok || !body.ok) {
+      setMessage(body.error === "campaign_has_history" ? "Essa campanha já tem clientes ou QR Codes. Desative-a para preservar o histórico." : "Não consegui apagar a campanha.");
+      return;
+    }
+    const next = campaigns.filter((campaign) => campaign.id !== id);
+    syncCampaigns(next);
+    if (selectedCampaignId === id && next[0]) onSelectCampaign(next[0].id);
+    setMessage("Campanha apagada.");
+  }
+
   return (
     <div className="content">
       <section className="section-intro">
@@ -502,12 +530,13 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
         <Metric value={campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || data.program.name} label="Selecionada para QR" trend="Adesão + pontuação" />
       </section>
       <article className="panel activity">
-        <div className="panel-header"><div><h3>Nova campanha</h3><p>Exemplo: Compre 10 e ganhe 1, Clube VIP, Cashback de pontos.</p></div></div>
+        <div className="panel-header"><div><p className="eyebrow">CONFIGURE SUA OFERTA</p><h3>Criar nova campanha</h3><p>Defina a recompensa, os pontos necessários e até quando ela ficará disponível.</p></div></div>
         <div className="coupon-box">
           <label>Nome<input value={newCampaign.name} onChange={(event) => setNewCampaign((current) => ({ ...current, name: event.target.value }))} placeholder="Programa de Fidelidade" /></label>
           <label>Recompensa<input value={newCampaign.rewardName} onChange={(event) => setNewCampaign((current) => ({ ...current, rewardName: event.target.value }))} placeholder="Recompensa" /></label>
           <label>Meta<input type="number" min={1} max={1000} value={newCampaign.pointsToReward} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsToReward: Number(event.target.value) }))} /></label>
           <label>Pontos por QR<input type="number" min={1} max={100} value={newCampaign.pointsPerCode} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsPerCode: Number(event.target.value) }))} /></label>
+          <label>Válida até (opcional)<input type="date" value={newCampaign.validUntil} onChange={(event) => setNewCampaign((current) => ({ ...current, validUntil: event.target.value }))} /></label>
           <button className="button button-dark" disabled={savingId === "new"} onClick={createCampaign}>{savingId === "new" ? "Criando..." : "Criar campanha"}</button>
         </div>
         {message && <p className={message.includes("Não") ? "form-error" : "muted"}>{message}</p>}
@@ -515,7 +544,7 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
       <article className="panel activity">
         <div className="panel-header"><div><h3>Campanhas existentes</h3><p>Escolha qual campanha será usada para gerar QR de adesão e pontuação.</p></div></div>
         <table>
-          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>STATUS</th><th>USAR</th><th>AÇÃO</th></tr></thead>
+          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>VALIDADE</th><th>STATUS</th><th>USAR</th><th>AÇÃO</th></tr></thead>
           <tbody>{campaigns.length ? campaigns.map((campaign) => {
             const draft = drafts[campaign.id] || campaign;
             return (
@@ -524,12 +553,13 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
                 <td><input value={draft.rewardName} onChange={(event) => updateDraft(campaign.id, "rewardName", event.target.value)} /></td>
                 <td><input type="number" min={1} max={1000} value={draft.pointsToReward} onChange={(event) => updateDraft(campaign.id, "pointsToReward", Number(event.target.value))} /></td>
                 <td><input type="number" min={1} max={100} value={draft.pointsPerCode} onChange={(event) => updateDraft(campaign.id, "pointsPerCode", Number(event.target.value))} /></td>
+                <td><input type="date" value={draft.validUntil || ""} onChange={(event) => updateDraft(campaign.id, "validUntil", event.target.value || null)} /></td>
                 <td><label className="inline-check"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft(campaign.id, "active", event.target.checked)} /> Ativa</label></td>
                 <td>{selectedCampaignId === campaign.id ? <span className="status ready">Selecionada</span> : <button className="link-button" disabled={!draft.active} onClick={() => onSelectCampaign(campaign.id)}>Usar nos QRs</button>}</td>
-                <td><button className="reward-action" disabled={savingId === campaign.id} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : "Salvar"}</button></td>
+                <td className="table-actions"><button className="reward-action" disabled={savingId === campaign.id} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : "Salvar"}</button><button className="link-button danger" disabled={savingId === campaign.id} onClick={() => deleteCampaign(campaign.id, campaign.name)}>Apagar</button></td>
               </tr>
             );
-          }) : <tr><td colSpan={7}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
+          }) : <tr><td colSpan={8}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
         </table>
       </article>
     </div>
