@@ -18,7 +18,7 @@ export async function redeemCode(code: string, customerId: string) {
 async function redeemWithClient(client: PoolClient, code: string, customerId: string) {
   const locked = await client.query<CodeRow>(`
     select c.id, c.organization_id, c.program_id, c.points, c.customer_id, c.status, c.expires_at,
-           p.points_to_reward, p.active as program_active
+           p.points_to_reward, (p.active and (p.valid_until is null or p.valid_until >= current_date)) as program_active
     from redemption_codes c join loyalty_programs p on p.id = c.program_id
     where c.code_hash = $1 for update of c`, [hashCode(code)]);
   const record = locked.rows[0];
