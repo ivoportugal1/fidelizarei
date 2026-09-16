@@ -103,13 +103,14 @@ export async function POST(request: Request) {
 
   const formData = await request.formData();
   const file = formData.get("file");
-  const kind = formData.get("kind") === "cover" ? "cover" : "logo";
+  const kind = formData.get("kind");
+  if (kind !== "cover") return NextResponse.json({ ok: false, error: "logo_locked" }, { status: 403 });
   if (!(file instanceof File)) return NextResponse.json({ ok: false, error: "file_required" }, { status: 400 });
   if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "invalid_file_type" }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ ok: false, error: "file_too_large" }, { status: 400 });
 
   const original = Buffer.from(await file.arrayBuffer());
-  const data = kind === "logo" ? await processLogoAsset(original) : await processCoverAsset(original);
+  const data = await processCoverAsset(original);
   const result = await query<{ id: string }>(`
     insert into wallet_card_assets (organization_id, filename, content_type, data)
     values ($1, $2, $3, $4)
@@ -135,7 +136,7 @@ export async function POST(request: Request) {
     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, now())
     on conflict (organization_id) do update set
-      ${kind === "logo" ? "logo_asset_id" : "cover_asset_id"} = excluded.${kind === "logo" ? "logo_asset_id" : "cover_asset_id"},
+      cover_asset_id = excluded.cover_asset_id,
       updated_at = now()`,
     [
       row.organization_id,
@@ -158,8 +159,8 @@ export async function POST(request: Request) {
       defaults.instagramUsername,
       defaults.contactPhone,
       defaults.addressText,
-      kind === "logo" ? id : null,
-      kind === "cover" ? id : null,
+      null,
+      id,
     ]);
 
   return NextResponse.json({ ok: true, id, url: assetUrl(new URL(request.url).origin, id) });
