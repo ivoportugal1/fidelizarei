@@ -154,3 +154,6 @@
   .topbar-title { width:100%; }
   .top-actions .button { white-space:normal; text-align:center; }
 }
+
+.upload-grid-single { grid-template-columns:1fr; }
+.apple-logo-pill img,.google-logo img { object-fit:contain; padding:6px; background:#fffdf4; }
