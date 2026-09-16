@@ -12,7 +12,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, error: "identity_required" }, { status: 401 });
     }
 
-    const pass = await createAppleWalletPass(session.customerId, new URL(request.url).origin);
+    const url = new URL(request.url);
+    const pass = await createAppleWalletPass(session.customerId, url.origin, undefined, url.searchParams.get("programId"));
     return new NextResponse(new Uint8Array(pass.buffer), {
       headers: {
         "Content-Type": "application/vnd.apple.pkpass",
