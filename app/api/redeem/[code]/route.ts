@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createCustomerSession, readCustomerSession } from "@/lib/customer-session";
 import { query } from "@/lib/database";
+import { hashCpf, isValidCpf, normalizeCpf } from "@/lib/customer-cpf";
+import { ensureLoyaltySchema } from "@/lib/loyalty-schema";
 import { getCodeForEnrollment, redeemCode } from "@/lib/redemption";
 
 export const runtime = "nodejs";
@@ -19,24 +21,25 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
 
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
+    await ensureLoyaltySchema();
     const session = readCustomerSession((await cookies()).get("fideliza_customer")?.value);
     const { code } = await params;
-    const identity = await request.json().catch(() => ({})) as { fullName?: string; phone?: string };
+    const identity = await request.json().catch(() => ({})) as { cpf?: string };
     let customerId = session?.customerId;
 
-    if (!customerId && identity.fullName?.trim() && identity.phone?.trim()) {
+    if (!customerId && identity.cpf?.trim()) {
+      if (!isValidCpf(identity.cpf)) return errorResponse("invalid_cpf", 400);
       const codeRecord = await getCodeForEnrollment(code);
       if (!codeRecord) return errorResponse("invalid_code", 404);
-      const digits = identity.phone.replace(/\D/g, "");
+      const cpfHash = hashCpf(normalizeCpf(identity.cpf));
       const customer = await query<{ id: string }>(`
         select c.id
         from customers c
         join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = $2
         where c.organization_id = $1
-          and lower(c.full_name) = lower($3)
-          and regexp_replace(c.phone_e164, '\\D', '', 'g') = $4
+          and c.cpf_hash = $3
           and c.status = 'active'
-        limit 1`, [codeRecord.organization_id, codeRecord.program_id, identity.fullName.trim(), digits]);
+        limit 1`, [codeRecord.organization_id, codeRecord.program_id, cpfHash]);
       customerId = customer.rows[0]?.id;
     }
 
