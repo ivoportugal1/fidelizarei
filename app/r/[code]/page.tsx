@@ -21,8 +21,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
   const [walletError, setWalletError] = useState("");
   const [isAppleDevice, setIsAppleDevice] = useState(false);
   const [needsIdentification, setNeedsIdentification] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [cpf, setCpf] = useState("");
 
   useEffect(() => {
     fetch(`/api/redeem/${encodeURIComponent(code)}`)
@@ -41,14 +40,17 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     const response = await fetch(`/api/redeem/${encodeURIComponent(code)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fullName, phone }),
+      body: JSON.stringify({ cpf }),
     });
     const body = await response.json();
     setLoading(false);
     if (!response.ok || !body.ok) {
       if (body.error === "identity_required") {
         setNeedsIdentification(true);
-        setError("Informe o nome e WhatsApp usados na adesão para localizar seu ticket.");
+        setError("Informe o CPF usado na adesão para localizar seu ticket.");
+      } else if (body.error === "invalid_cpf") {
+        setNeedsIdentification(true);
+        setError("Informe um CPF válido.");
       } else if (body.error === "customer_not_enrolled" || body.error === "join_required") {
         setError("Este cadastro não participa desta campanha. Escaneie o QR de adesão desta campanha primeiro.");
       } else {
@@ -98,11 +100,10 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           <h1>Registrar ponto<br />em {program}.</h1>
           <p className="redeem-text">Este QR adiciona ponto ao ticket salvo na Wallet desta campanha.</p>
           {needsIdentification && <div className="redeem-form">
-            <input placeholder="Nome completo" value={fullName} onChange={(event) => setFullName(event.target.value)} required />
-            <input placeholder="WhatsApp com DDD" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" required />
+            <input placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" required />
           </div>}
           {error && <p className="form-error">{error}</p>}
-          <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && (!fullName.trim() || !phone.trim()))} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
+          <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && !cpf.trim())} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
           {info.joinUrl && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
           <small>Código: {code}</small>
         </>}
