@@ -35,11 +35,11 @@ async function redeemWithClient(client: PoolClient, code: string, customerId: st
     [customerId, record.organization_id],
   );
   if (!customer.rows[0]) throw new Error("customer_not_enrolled");
-  await client.query(`
-    insert into loyalty_balances (customer_id, program_id, points, rewards_available)
-    values ($1, $2, 0, 0)
-    on conflict (customer_id, program_id) do nothing`,
-    [customerId, record.program_id]);
+  const membership = await client.query<{ customer_id: string }>(
+    "select customer_id from loyalty_balances where customer_id = $1 and program_id = $2 limit 1",
+    [customerId, record.program_id],
+  );
+  if (!membership.rows[0]) throw new Error("customer_not_enrolled");
 
   await client.query("update redemption_codes set status = 'redeemed', redeemed_at = now(), redeemed_by_customer_id = $1 where id = $2", [customerId, record.id]);
   await client.query(`insert into point_transactions (organization_id, customer_id, program_id, redemption_code_id, kind, points_delta)
