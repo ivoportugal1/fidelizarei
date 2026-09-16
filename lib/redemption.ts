@@ -35,6 +35,11 @@ async function redeemWithClient(client: PoolClient, code: string, customerId: st
     [customerId, record.organization_id],
   );
   if (!customer.rows[0]) throw new Error("customer_not_enrolled");
+  await client.query(`
+    insert into loyalty_balances (customer_id, program_id, points, rewards_available)
+    values ($1, $2, 0, 0)
+    on conflict (customer_id, program_id) do nothing`,
+    [customerId, record.program_id]);
 
   await client.query("update redemption_codes set status = 'redeemed', redeemed_at = now(), redeemed_by_customer_id = $1 where id = $2", [customerId, record.id]);
   await client.query(`insert into point_transactions (organization_id, customer_id, program_id, redemption_code_id, kind, points_delta)
@@ -61,7 +66,7 @@ async function redeemWithClient(client: PoolClient, code: string, customerId: st
     "update wallet_passes set updated_at = now() where customer_id = $1 and program_id = $2 and status = 'active'",
     [customerId, record.program_id],
   );
-  return { points: balance.points, rewards_available: balance.rewards_available, points_to_reward: record.points_to_reward };
+  return { points: balance.points, rewards_available: balance.rewards_available, points_to_reward: record.points_to_reward, program_id: record.program_id };
 }
 
 export async function getCodeForEnrollment(code: string) {
