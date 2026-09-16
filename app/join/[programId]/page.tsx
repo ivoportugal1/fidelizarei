@@ -16,6 +16,7 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState("");
@@ -40,14 +41,16 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
     const response = await fetch(`/api/join/${encodeURIComponent(programId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstName, lastName, phone }),
+      body: JSON.stringify({ firstName, lastName, phone, cpf }),
     });
     const body = await response.json().catch(() => ({ ok: false }));
     setLoading(false);
     if (!response.ok || !body.ok) {
       setError(body.error === "invalid_name"
         ? "Informe nome e sobrenome."
-        : body.error === "invalid_phone"
+        : body.error === "invalid_cpf"
+          ? "Informe um CPF válido."
+          : body.error === "invalid_phone"
           ? "Informe um telefone válido."
           : body.error === "phone_already_registered"
             ? "Número já existente nesta loja. Tente outro."
@@ -92,7 +95,8 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
           <div className="redeem-form">
             <input placeholder="Nome" value={firstName} onChange={(event) => setFirstName(event.target.value)} required />
             <input placeholder="Sobrenome" value={lastName} onChange={(event) => setLastName(event.target.value)} required />
-            <input placeholder="WhatsApp com DDD" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" required />
+            <input placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" required />
+            <input placeholder="WhatsApp com DDD (opcional)" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" />
           </div>
           {error && <p className="form-error">{error}</p>}
           <button className="button button-coral redeem-button" disabled={loading} onClick={submit}>{loading ? "Cadastrando..." : "Entrar no programa"}</button>
@@ -102,7 +106,7 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
           <p className="eyebrow">{joined ? "CADASTRO CONCLUÍDO" : "VOCÊ JÁ PARTICIPA"}</p>
           <h1>Seu cartão está<br />pronto para a Wallet.</h1>
           <p className="redeem-text">Seu progresso começa em 0. Os pontos entram apenas pelos QR Codes de pontuação.</p>
-          <div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href="/api/wallet/apple">Adicionar à Apple Wallet</a></div>
+          <div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(programId)}`}>Adicionar à Apple Wallet</a></div>
           {walletError && <p className="form-error">{walletError}</p>}
         </>}
       </section>
