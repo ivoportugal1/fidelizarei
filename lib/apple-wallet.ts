@@ -229,9 +229,54 @@ function progressIconSvg(input: {
   const { theme, index, earned, x, y, size, earnedColor, unearnedColor, textColor } = input;
   if (theme === "universal") {
     const radius = size / 2;
+    // Apple Wallet's image renderer can omit SVG <text> in strip images on
+    // some iOS versions. Draw the number as seven-segment vector strokes so
+    // every progress circle remains numbered without relying on a font.
+    const sevenSegmentNumber = (value: number, color: string) => {
+      const digits = String(value).slice(-2);
+      const digitWidth = size * 0.24;
+      const digitHeight = size * 0.43;
+      const gap = size * 0.055;
+      const totalWidth = digitWidth * digits.length + gap * (digits.length - 1);
+      const startX = x + radius - totalWidth / 2;
+      const startY = y + radius - digitHeight / 2;
+      const thickness = Math.max(2.5, size * 0.06);
+      const enabled: Record<string, string[]> = {
+        "0": ["a", "b", "c", "d", "e", "f"],
+        "1": ["b", "c"],
+        "2": ["a", "b", "g", "e", "d"],
+        "3": ["a", "b", "g", "c", "d"],
+        "4": ["f", "g", "b", "c"],
+        "5": ["a", "f", "g", "c", "d"],
+        "6": ["a", "f", "g", "e", "c", "d"],
+        "7": ["a", "b", "c"],
+        "8": ["a", "b", "c", "d", "e", "f", "g"],
+        "9": ["a", "b", "c", "d", "f", "g"],
+      };
+
+      return digits.split("").map((digit, digitIndex) => {
+        const left = startX + digitIndex * (digitWidth + gap);
+        const top = startY;
+        const middle = top + digitHeight / 2;
+        const right = left + digitWidth;
+        const bottom = top + digitHeight;
+        const inset = thickness * 0.7;
+        const segments: Record<string, string> = {
+          a: `M ${left + inset} ${top} L ${right - inset} ${top}`,
+          b: `M ${right} ${top + inset} L ${right} ${middle - inset}`,
+          c: `M ${right} ${middle + inset} L ${right} ${bottom - inset}`,
+          d: `M ${left + inset} ${bottom} L ${right - inset} ${bottom}`,
+          e: `M ${left} ${middle + inset} L ${left} ${bottom - inset}`,
+          f: `M ${left} ${top + inset} L ${left} ${middle - inset}`,
+          g: `M ${left + inset} ${middle} L ${right - inset} ${middle}`,
+        };
+        return (enabled[digit] || []).map((segment) => `<path d="${segments[segment]}"/>`).join("");
+      }).join("");
+    };
+    const numberColor = earned ? textColor : unearnedColor;
     return `<g>
       <circle cx="${x + radius}" cy="${y + radius}" r="${radius - 3}" fill="${earned ? earnedColor : "transparent"}" stroke="${earned ? earnedColor : unearnedColor}" stroke-width="4"/>
-      <text x="${x + radius}" y="${y + radius + 10}" text-anchor="middle" font-size="${Math.round(size * 0.46)}" font-weight="800" font-family="Arial, sans-serif" fill="${earned ? textColor : unearnedColor}">${index + 1}</text>
+      <g fill="none" stroke="${numberColor}" stroke-width="${Math.max(2.5, size * 0.06)}" stroke-linecap="round" stroke-linejoin="round">${sevenSegmentNumber(index + 1, numberColor)}</g>
     </g>`;
   }
 
