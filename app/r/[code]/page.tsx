@@ -5,6 +5,7 @@ import { use, useEffect, useState } from "react";
 type CodeInfo = {
   ok: boolean;
   status?: string;
+  programId?: string;
   programName?: string;
   organizationName?: string;
   joinUrl?: string;
@@ -15,10 +16,13 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
   const [info, setInfo] = useState<CodeInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [walletLoading, setWalletLoading] = useState(false);
-  const [result, setResult] = useState<{ points: number; rewards_available: number; points_to_reward: number } | null>(null);
+  const [result, setResult] = useState<{ points: number; rewards_available: number; points_to_reward: number; program_id?: string } | null>(null);
   const [error, setError] = useState("");
   const [walletError, setWalletError] = useState("");
   const [isAppleDevice, setIsAppleDevice] = useState(false);
+  const [needsIdentification, setNeedsIdentification] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     fetch(`/api/redeem/${encodeURIComponent(code)}`)
@@ -36,11 +40,20 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     setError("");
     const response = await fetch(`/api/redeem/${encodeURIComponent(code)}`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName, phone }),
     });
     const body = await response.json();
     setLoading(false);
     if (!response.ok || !body.ok) {
-      setError(body.error === "identity_required" || body.error === "customer_not_enrolled" || body.error === "join_required" ? "Você ainda não participa deste programa. Cadastre-se pelo QR de adesão antes de pontuar." : "Este QR Code não está disponível ou já foi usado.");
+      if (body.error === "identity_required") {
+        setNeedsIdentification(true);
+        setError("Informe o nome e WhatsApp usados na adesão para localizar seu ticket.");
+      } else if (body.error === "customer_not_enrolled" || body.error === "join_required") {
+        setError("Este cadastro não participa desta campanha. Escaneie o QR de adesão desta campanha primeiro.");
+      } else {
+        setError("Este QR Code não está disponível ou já foi usado.");
+      }
       return;
     }
     setResult(body);
@@ -53,7 +66,8 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     }
     setWalletLoading(true);
     setWalletError("");
-    const response = await fetch("/api/wallet/google", { method: "POST" });
+    const walletProgramId = result?.program_id || info?.programId || "";
+    const response = await fetch(`/api/wallet/google?programId=${encodeURIComponent(walletProgramId)}`, { method: "POST" });
     const body = await response.json();
     setWalletLoading(false);
     if (!response.ok || !body.ok) {
@@ -82,13 +96,17 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           <div className="redeem-illustration">✓</div>
           <p className="eyebrow">QR DE PONTUAÇÃO</p>
           <h1>Registrar ponto<br />em {program}.</h1>
-          <p className="redeem-text">Este QR é apenas para clientes já cadastrados. Ele não faz adesão automática.</p>
+          <p className="redeem-text">Este QR adiciona ponto ao ticket salvo na Wallet desta campanha.</p>
+          {needsIdentification && <div className="redeem-form">
+            <input placeholder="Nome completo" value={fullName} onChange={(event) => setFullName(event.target.value)} required />
+            <input placeholder="WhatsApp com DDD" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" required />
+          </div>}
           {error && <p className="form-error">{error}</p>}
-          <button className="button button-coral redeem-button" disabled={loading} onClick={redeem}>{loading ? "Registrando..." : "Adicionar ponto"}</button>
+          <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && (!fullName.trim() || !phone.trim()))} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
           {info.joinUrl && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
           <small>Código: {code}</small>
         </>}
-        {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Adicione o cartão para acompanhar seus pontos na Wallet."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href="/api/wallet/apple">Adicionar à Apple Wallet</a></div>{isAppleDevice && <p className="redeem-text">Você está no iPhone. Google Wallet é para Android; no iPhone precisa Apple Wallet.</p>}{walletError && <p className="form-error">{walletError}</p>}</>}
+        {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Abra seu ticket na Wallet para acompanhar seus pontos."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(result.program_id || info?.programId || "")}`}>Atualizar Apple Wallet</a></div>{isAppleDevice && <p className="redeem-text">Você está no iPhone. A Apple Wallet atualiza o ticket desta campanha.</p>}{walletError && <p className="form-error">{walletError}</p>}</>}
       </section>
       <p className="redeem-footer">Fidelizarei — fidelidade sem aplicativo</p>
     </main>
