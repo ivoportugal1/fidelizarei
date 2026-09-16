@@ -142,7 +142,7 @@ function formatMemberSince(date: Date) {
     .replace(".", "");
 }
 
-export async function createGoogleWalletSaveLink(customerId: string, origin: string) {
+export async function createGoogleWalletSaveLink(customerId: string, origin: string, requestedProgramId?: string | null) {
   const issuerId = process.env.GOOGLE_WALLET_ISSUER_ID;
   if (!issuerId) throw new Error("google_wallet_not_configured");
 
@@ -157,14 +157,17 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     join organizations o on o.id = c.organization_id
     join loyalty_programs p on p.organization_id = o.id and p.active = true
     left join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = p.id
-    where c.id = $1 and c.status = 'active'
-    order by p.created_at asc
-    limit 1`, [customerId]);
+    where c.id = $1
+      and c.status = 'active'
+      and ($2::uuid is null or p.id = $2::uuid)
+      and ($2::uuid is null or lb.customer_id is not null)
+    order by coalesce(lb.updated_at, c.created_at) desc, p.created_at asc
+    limit 1`, [customerId, requestedProgramId || null]);
   const context = result.rows[0];
   if (!context) throw new Error("customer_not_found");
 
   const classId = `${issuerId}.${suffix(context.program_id)}`;
-  const objectId = `${issuerId}.${suffix(context.customer_id)}`;
+  const objectId = `${issuerId}.${suffix(context.customer_id)}_${suffix(context.program_id)}`;
   const accountName = context.full_name || context.phone_e164 || "Cliente Fidelizarei";
   const settings = await getWalletCardSettings(context.organization_id, defaultWalletSettings({
     businessName: context.organization_name,
