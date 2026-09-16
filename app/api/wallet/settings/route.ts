@@ -58,7 +58,6 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => ({}));
     const fallback = await getWalletCardSettings(context.organization_id, defaultsFrom(context), new URL(request.url).origin);
     const settings = normalizeWalletSettings(body.settings ?? body, fallback);
-    const logoId = settings.logoUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
     const coverId = settings.coverUrl?.match(/\/api\/wallet\/assets\/([^/?#]+)/)?.[1] ?? null;
 
     await query(`
@@ -91,7 +90,7 @@ export async function PUT(request: Request) {
         instagram_username = excluded.instagram_username,
         contact_phone = excluded.contact_phone,
         address_text = excluded.address_text,
-        logo_asset_id = coalesce(excluded.logo_asset_id, wallet_card_settings.logo_asset_id),
+        logo_asset_id = null,
         cover_asset_id = coalesce(excluded.cover_asset_id, wallet_card_settings.cover_asset_id),
         updated_at = now()`,
       [
@@ -115,7 +114,7 @@ export async function PUT(request: Request) {
         settings.instagramUsername,
         settings.contactPhone,
         settings.addressText,
-        logoId,
+        null,
         coverId,
       ]);
 
