@@ -13,8 +13,9 @@ export async function POST(request: Request) {
     }
     const session = readCustomerSession((await cookies()).get("fideliza_customer")?.value);
     if (!session) return NextResponse.json({ ok: false, error: "identity_required" }, { status: 401 });
-    const url = await createGoogleWalletSaveLink(session.customerId, new URL(request.url).origin);
-    return NextResponse.json({ ok: true, url });
+    const url = new URL(request.url);
+    const walletUrl = await createGoogleWalletSaveLink(session.customerId, url.origin, url.searchParams.get("programId"));
+    return NextResponse.json({ ok: true, url: walletUrl });
   } catch (error) {
     const message = error instanceof Error ? error.message : "wallet_unavailable";
     console.error("google_wallet_error", message);
