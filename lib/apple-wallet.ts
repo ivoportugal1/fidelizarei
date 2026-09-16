@@ -656,7 +656,13 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
       storeCard: {
-        headerFields: [],
+        headerFields: [
+          {
+            key: "campaign",
+            label: "CAMPANHA",
+            value: shortField(context.program_name, 20),
+          },
+        ],
         primaryFields: [],
         secondaryFields: [
           {
