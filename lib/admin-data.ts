@@ -2,6 +2,7 @@ import { query } from "./database";
 import { listQrBatches, type QrBatchSummary } from "./qr-batches";
 import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 import { ensureOrganizationSchema } from "./organization-schema";
+import { ensureLoyaltySchema } from "./loyalty-schema";
 
 export type DashboardData = {
   user: { name: string; email: string };
@@ -31,6 +32,7 @@ export type DashboardData = {
     rewardName: string;
     pointsToReward: number;
     pointsPerCode: number;
+    validUntil: string | null;
     active: boolean;
     createdAt: string;
   }>;
@@ -86,12 +88,14 @@ type CampaignRow = {
   reward_name: string;
   points_to_reward: number;
   points_per_code: number;
+  valid_until: string | null;
   active: boolean;
   created_at: Date;
 };
 
 export async function getDashboardData(userId: string, userEmail: string, userName: string | null, origin = ""): Promise<DashboardData> {
   await ensureOrganizationSchema();
+  await ensureLoyaltySchema();
   const context = await query<ContextRow>(`
     select o.id as organization_id, o.name as organization_name, o.tax_id, o.contact_phone, o.salesperson_name, o.plan,
            o.subscription_status, o.subscription_billing_interval, o.trial_ends_at,
@@ -145,7 +149,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
     getWalletCardSettings(row.organization_id, defaults, origin),
     listQrBatches(row.organization_id, row.program_id),
     query<CampaignRow>(`
-      select id, name, reward_name, points_to_reward, points_per_code, active, created_at
+      select id, name, reward_name, points_to_reward, points_per_code, valid_until, active, created_at
       from loyalty_programs
       where organization_id = $1
       order by active desc, created_at asc`, [row.organization_id]),
@@ -179,6 +183,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       rewardName: campaign.reward_name,
       pointsToReward: Number(campaign.points_to_reward),
       pointsPerCode: Number(campaign.points_per_code),
+      validUntil: campaign.valid_until,
       active: campaign.active,
       createdAt: campaign.created_at.toISOString(),
     })),
