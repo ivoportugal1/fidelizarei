@@ -499,8 +499,11 @@ function passJson(input: {
   };
 }
 
-export async function createAppleWalletPass(customerId: string, origin: string, expectedSerialNumber?: string) {
+export async function createAppleWalletPass(customerId: string, origin: string, expectedSerialNumber?: string, requestedProgramId?: string | null) {
   if (!configured()) throw new Error("apple_wallet_not_configured");
+  const serialPrefix = `apple-${customerId}-`;
+  const programIdFromSerial = expectedSerialNumber?.startsWith(serialPrefix) ? expectedSerialNumber.slice(serialPrefix.length) : null;
+  const targetProgramId = requestedProgramId || programIdFromSerial || null;
 
   const result = await query<AppleWalletContext>(`
     select c.id as customer_id, c.full_name, c.phone_e164, c.created_at as customer_created_at,
@@ -517,9 +520,12 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
     join organizations o on o.id = c.organization_id
     join loyalty_programs p on p.organization_id = o.id and p.active = true
     left join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = p.id
-    where c.id = $1 and c.status = 'active'
-    order by p.created_at asc
-    limit 1`, [customerId]);
+    where c.id = $1
+      and c.status = 'active'
+      and ($2::uuid is null or p.id = $2::uuid)
+      and ($2::uuid is null or lb.customer_id is not null)
+    order by coalesce(lb.updated_at, c.created_at) desc, p.created_at asc
+    limit 1`, [customerId, targetProgramId]);
 
   const context = result.rows[0];
   if (!context) throw new Error("customer_not_found");
