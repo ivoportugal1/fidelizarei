@@ -31,7 +31,6 @@ const formatNumber = (value: number) => value.toLocaleString("pt-BR");
 const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)) : "Sem atividade";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CL";
 const planLabel = (interval: "monthly" | "yearly") => interval === "yearly" ? "Anual" : "Mensal";
-type AppleLogoShape = "circle" | "rounded" | "pill";
 
 function daysLeft(value: string | null) {
   if (!value) return null;
@@ -221,13 +220,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
           <button className="sidebar-close" aria-label="Fechar menu" onClick={() => setMenuOpen(false)}>×</button>
         </div>
         <div className="company-switcher">
-          <div className="company-logo">
-            {data.walletSettings.logoUrl ? (
-              <img src={data.walletSettings.logoUrl} alt={`Logo ${data.organization.name}`} />
-            ) : (
-              data.organization.name[0]
-            )}
-          </div>
+          <div className="company-logo">{data.organization.name[0]}</div>
           <div><strong>{data.organization.name}</strong><small>Plano {planLabel(data.organization.billingInterval)}</small></div>
         </div>
         <nav>
@@ -714,20 +707,15 @@ function CardDesigner({
         <article className="panel wallet-form">
           <div className="wallet-form-section">
             <h3>Identidade do estabelecimento</h3>
-            <div className="upload-grid">
-              <label className="upload-card">
-                <span>Logo</span>
-                {settings.logoUrl ? <img src={settings.logoUrl} alt="Logo do estabelecimento" /> : <b>{initials(settings.businessName)}</b>}
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadAsset("logo", event.target.files?.[0])} />
-                <small>{uploading === "logo" ? "Enviando..." : "PNG, JPG ou WEBP"}</small>
-              </label>
+            <div className="upload-grid upload-grid-single">
               <label className="upload-card wide">
                 <span>Foto/capa</span>
                 {settings.coverUrl ? <img src={settings.coverUrl} alt="Capa do cartão" /> : <b>Capa</b>}
                 <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadAsset("cover", event.target.files?.[0])} />
-                <small>{uploading === "cover" ? "Enviando..." : "Usada no Google Wallet; Apple usa progresso no centro"}</small>
+                <small>{uploading === "cover" ? "Enviando..." : "Opcional no Google Wallet; Apple usa a logo fixa Fidelizarei"}</small>
               </label>
             </div>
+            <p className="editor-note">A logo do cartão é fixa da Fidelizarei. A empresa altera nome, cores e textos — não a marca do topo.</p>
             <label>Nome do estabelecimento<input value={settings.businessName} onChange={(e) => update("businessName", e.target.value)} /></label>
             <label>Nome/descrição do programa<input value={settings.programDescription} onChange={(e) => update("programDescription", e.target.value)} /></label>
             <label>Texto da recompensa<input value={settings.rewardText} onChange={(e) => update("rewardText", e.target.value)} /></label>
@@ -806,53 +794,10 @@ function PointIcon({ theme }: { theme: PointTheme }) {
   return null;
 }
 
-function detectTransparentLogoCorners(image: HTMLImageElement) {
-  try {
-    const size = 24;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext("2d");
-    if (!context) return false;
-    context.clearRect(0, 0, size, size);
-    context.drawImage(image, 0, 0, size, size);
-    const pixels = context.getImageData(0, 0, size, size).data;
-    return [
-      [0, 0],
-      [size - 1, 0],
-      [0, size - 1],
-      [size - 1, size - 1],
-    ].some(([x, y]) => pixels[(y * size + x) * 4 + 3] < 220);
-  } catch {
-    return false;
-  }
-}
-
-function AdaptiveAppleLogo({ settings }: { settings: WalletSettings }) {
-  const [shape, setShape] = useState<AppleLogoShape>("circle");
-
-  useEffect(() => {
-    if (!settings.logoUrl) {
-      setShape("circle");
-      return;
-    }
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.onload = () => {
-      const ratio = image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : 1;
-      if (ratio >= 1.45) {
-        setShape("pill");
-        return;
-      }
-      setShape(detectTransparentLogoCorners(image) ? "circle" : "rounded");
-    };
-    image.onerror = () => setShape("circle");
-    image.src = settings.logoUrl;
-  }, [settings.logoUrl]);
-
+function FixedFidelizareiLogo() {
   return (
-    <span className={`apple-logo-frame apple-logo-${shape}`}>
-      {settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" /> : initials(settings.businessName)}
+    <span className="apple-logo-frame apple-logo-pill">
+      <img src="/logo-fidelizarei-transparent.png" alt="Fidelizarei" />
     </span>
   );
 }
@@ -868,7 +813,7 @@ function AppleWalletPreview({ settings, points }: { settings: WalletSettings; po
   } as CSSProperties}>
     <div className="apple-simple-head">
       <div className="apple-simple-brand">
-        <AdaptiveAppleLogo settings={settings} />
+        <FixedFidelizareiLogo />
         <strong>{settings.businessName}</strong>
       </div>
       <div className="apple-simple-count"><small>{settings.progressLabel.toUpperCase()}</small><b>{points}/{settings.pointsGoal}</b></div>
@@ -880,7 +825,7 @@ function AppleWalletPreview({ settings, points }: { settings: WalletSettings; po
       <div><small>PROGRESSO</small><b>{points}/{settings.pointsGoal} {settings.progressLabel}</b></div>
       <div><small>CLIENTE</small><b>{previewCustomer.name.split(" ")[0]}</b></div>
       <div><small>STATUS</small><b>{completed ? "Disponível" : "Ativo"}</b></div>
-      <div><small>RECOMPENSA</small><b>{settings.rewardText}</b></div>
+      <div><small>VALIDADE</small><b>30/09/2026</b></div>
     </div>
   </div>;
 }
@@ -890,7 +835,7 @@ function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; p
   const remaining = Math.max(settings.pointsGoal - points, 0);
   return <div className="google-pass" style={{ "--google-primary": settings.primaryColor, "--google-secondary": settings.secondaryColor } as CSSProperties}>
     <div className="google-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="google-hero-shade" /><div><small>Google Wallet</small><strong>{settings.businessName}</strong><span>{settings.programDescription}</span></div></div>
-    <div className="google-pass-head"><div className="google-logo">{settings.logoUrl ? <img src={settings.logoUrl} alt="" /> : initials(settings.businessName)}</div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
+    <div className="google-pass-head"><div className="google-logo"><img src="/logo-fidelizarei-transparent.png" alt="" /></div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 10h14v10H5z"/><path d="M4 10h16V7H4z"/><path d="M12 7v13"/><path d="M8.5 7C6 5 8.5 3 12 7c3.5-4 6-2 3.5 0"/></svg></span><div><b>Recompensa</b><p>{settings.rewardText}</p></div></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal} {settings.progressLabel}. {completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}.`}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} /></div></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>{settings.accumulationText}</p></div></div>
