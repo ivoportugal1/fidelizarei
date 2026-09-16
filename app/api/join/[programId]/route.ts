@@ -32,8 +32,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ programId:
   let alreadyJoined = false;
   if (session) {
     const existing = await query<{ id: string }>(
-      "select id from customers where id = $1 and organization_id = $2 and status = 'active' limit 1",
-      [session.customerId, program.organization_id],
+      `select c.id
+       from customers c
+       join loyalty_balances lb on lb.customer_id = c.id and lb.program_id = $3
+       where c.id = $1 and c.organization_id = $2 and c.status = 'active'
+       limit 1`,
+      [session.customerId, program.organization_id, program.program_id],
     );
     alreadyJoined = Boolean(existing.rows[0]);
   }
@@ -62,25 +66,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const customerResult = await client.query<{ id: string }>(`
       insert into customers (organization_id, phone_e164, first_name, last_name, full_name, status, deactivated_at)
       values ($1, $2, $3, $4, $5, 'active', null)
-      on conflict (organization_id, phone_e164) do nothing
+      on conflict (organization_id, phone_e164) do update set
+        first_name = excluded.first_name,
+        last_name = excluded.last_name,
+        full_name = excluded.full_name,
+        status = 'active',
+        deactivated_at = null
       returning id`, [program.organization_id, phone, firstName, lastName, `${firstName} ${lastName}`]);
     const row = customerResult.rows[0];
-    if (!row) throw new Error("phone_already_registered");
     await client.query(`
       insert into loyalty_balances (customer_id, program_id, points, rewards_available)
       values ($1, $2, 0, 0)
       on conflict (customer_id, program_id) do nothing`, [row.id, program.program_id]);
     return row;
-  }).catch((error) => {
-    if (error instanceof Error && error.message === "phone_already_registered") return null;
-    throw error;
   });
 
-  if (!customer) {
-    return NextResponse.json({ ok: false, error: "phone_already_registered" }, { status: 409 });
-  }
-
-  const response = NextResponse.json({ ok: true, enrolled: true });
+  const response = NextResponse.json({ ok: true, enrolled: true, programId: program.program_id });
   response.cookies.set("fideliza_customer", createCustomerSession(customer.id), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
