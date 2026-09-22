@@ -157,3 +157,6 @@
 
 .upload-grid-single { grid-template-columns:1fr; }
 .apple-logo-pill img,.google-logo img { object-fit:contain; padding:6px; background:#fffdf4; }
+.login-card .tracking-consent { display:grid; grid-template-columns:18px 1fr; align-items:start; gap:10px; font-weight:500; line-height:1.45; color:#5f6a65; }
+.login-card .tracking-consent input { width:18px; height:18px; margin:1px 0 0; padding:0; accent-color:#173d20; }
+.login-card .tracking-consent input:focus { outline:2px solid #f4b40055; outline-offset:2px; }

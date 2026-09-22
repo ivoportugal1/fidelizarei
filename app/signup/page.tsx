@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
   const [couponCode, setCouponCode] = useState("");
+  const [purchaseTrackingConsent, setPurchaseTrackingConsent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +24,7 @@ export default function SignupPage() {
     const response = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ businessName, ownerName, taxId, salespersonName, email, password, billingInterval, couponCode }),
+      body: JSON.stringify({ businessName, ownerName, taxId, salespersonName, email, password, billingInterval, couponCode, purchaseTrackingConsent }),
     });
     const body = await response.json();
     setLoading(false);
@@ -49,6 +50,14 @@ export default function SignupPage() {
         <label>Seu nome<input value={ownerName} onChange={(event) => setOwnerName(event.target.value)} autoComplete="name" /></label>
         <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
         <label>Senha<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" /></label>
+        <label className="tracking-consent">
+          <input
+            checked={purchaseTrackingConsent}
+            onChange={(event) => setPurchaseTrackingConsent(event.target.checked)}
+            type="checkbox"
+          />
+          <span>Autorizo o uso protegido do meu email para medir esta compra nos anúncios da Fidelizarei na Meta. Opcional.</span>
+        </label>
         {error && <p className="form-error">{error}</p>}
         <button className="button button-dark" disabled={loading}>{loading ? "Criando..." : couponCode.trim() ? "Criar conta com cupom" : "Criar conta e escolher pagamento"}</button>
         <p className="auth-switch">Já tem conta? <Link href="/login">Entrar</Link></p>
