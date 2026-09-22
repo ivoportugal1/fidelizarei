@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminSession, hashPassword, setAdminCookie } from "@/lib/auth";
 import { isTrialCouponValid } from "@/lib/billing";
 import { query } from "@/lib/database";
+import { ensureMetaTrackingSchema } from "@/lib/meta-conversions";
 import { ensureOrganizationSchema } from "@/lib/organization-schema";
 
 export const runtime = "nodejs";
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     password?: string;
     billingInterval?: "monthly" | "yearly";
     couponCode?: string;
+    purchaseTrackingConsent?: boolean;
   };
 
   const businessName = body.businessName?.trim();
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
   const billingInterval = body.billingInterval === "yearly" ? "yearly" : "monthly";
   const couponCode = body.couponCode?.trim() || "";
   const hasTrialCoupon = isTrialCouponValid(couponCode);
+  const purchaseTrackingConsent = body.purchaseTrackingConsent === true;
 
   if (!businessName || !ownerName || !email || password.length < 8 || ![11, 14].includes(taxId.length)) {
     return NextResponse.json({ ok: false, error: "invalid_signup" }, { status: 400 });
@@ -62,18 +65,20 @@ export async function POST(request: Request) {
 
   const slug = await uniqueSlug(slugify(businessName));
   await ensureOrganizationSchema();
+  await ensureMetaTrackingSchema();
   const org = await query<{ id: string }>(`
     insert into organizations (
       name, slug, tax_id, plan, subscription_status, trial_started_at, trial_ends_at,
-      subscription_billing_interval, subscription_coupon_code, salesperson_name
+      subscription_billing_interval, subscription_coupon_code, salesperson_name,
+      meta_purchase_tracking_consent_at
     )
     values (
       $1, $2, $3, 'starter', $4,
       case when $4 = 'trialing' then now() else null end,
       case when $4 = 'trialing' then now() + interval '30 days' else null end,
-      $5, $6, $7
+      $5, $6, $7, case when $8 then now() else null end
     )
-    returning id`, [businessName, slug, taxId, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null, salespersonName]);
+    returning id`, [businessName, slug, taxId, hasTrialCoupon ? "trialing" : "pending", billingInterval, hasTrialCoupon ? couponCode.toUpperCase() : null, salespersonName, purchaseTrackingConsent]);
 
   const user = await query<{ id: string }>(`
     insert into app_users (email, password_hash, full_name)

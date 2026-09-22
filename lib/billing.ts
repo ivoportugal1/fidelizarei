@@ -1,5 +1,7 @@
 import { timingSafeEqual, createHmac } from "node:crypto";
 import { query } from "./database";
+import { trackFirstSubscriptionPurchase } from "./meta-conversions";
+import type { FirstPurchaseInvoice } from "./meta-purchase-payload";
 import { publicAppUrl } from "./public-url";
 
 export type BillingStatus = "trialing" | "pending" | "active" | "past_due" | "canceled" | "expired";
@@ -54,17 +56,16 @@ type StripeSubscription = {
   metadata?: Record<string, string> | null;
 };
 
-type StripeInvoice = {
-  id: string;
+type StripeInvoice = FirstPurchaseInvoice & {
   subscription?: string | null | { id?: string | null; metadata?: Record<string, string> | null };
   subscription_details?: { metadata?: Record<string, string> | null } | null;
   lines?: { data?: Array<{ period?: { end?: number | null } | null }> } | null;
-  status?: string | null;
 };
 
 type StripeEvent = {
   id: string;
   type: string;
+  created?: number;
   data?: { object?: unknown };
 };
 
@@ -388,10 +389,19 @@ export async function processStripeWebhook(request: Request) {
     organizationId = await updateOrganizationFromCheckoutSession(object as StripeCheckoutSession);
   } else if (payload.type === "customer.subscription.updated" || payload.type === "customer.subscription.deleted") {
     organizationId = await updateOrganizationFromStripeSubscription(object as StripeSubscription);
-  } else if (payload.type === "invoice.payment_succeeded") {
+  } else if (payload.type === "invoice.paid" || payload.type === "invoice.payment_succeeded") {
     organizationId = await updateOrganizationFromInvoice(object as StripeInvoice);
   }
 
   await query("update billing_events set organization_id = $2, processed_at = now() where id = $1", [event.rows[0].id, organizationId]);
+
+  if (payload.type === "invoice.paid" || payload.type === "invoice.payment_succeeded") {
+    const tracking = await trackFirstSubscriptionPurchase({
+      invoice: object as StripeInvoice,
+      organizationId,
+      stripeEventCreated: payload.created || Math.floor(Date.now() / 1000),
+    });
+    await query("update billing_events set action = $2 where id = $1", [event.rows[0].id, `meta_purchase:${tracking.sent ? "sent" : tracking.reason}`]);
+  }
   return { organizationId };
 }
