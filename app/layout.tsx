@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./marketing.css";
+import "./marketing-a.css";
+import "./marketing-b.css";
 
 export const metadata: Metadata = {
   title: "Fidelizarei — fidelidade sem aplicativo",
