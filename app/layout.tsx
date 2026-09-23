@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./marketing.css";
 
 export const metadata: Metadata = {
   title: "Fidelizarei — fidelidade sem aplicativo",
   description: "Programas de fidelidade por QR Code e Wallet.",
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <html lang="pt-BR">
-      <body>{children}</body>
-    </html>
-  );
+  return <html lang="pt-BR"><body>{children}</body></html>;
 }
