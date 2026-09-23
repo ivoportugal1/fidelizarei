@@ -31,6 +31,30 @@ export default function Home() {
         <div><b>02</b><span>O cliente escaneia o QR da embalagem.</span></div>
         <div><b>03</b><span>O ponto vai para a carteira dele.</span></div>
       </section>
+      <section className="landing-contact" aria-labelledby="contact-title">
+        <div className="landing-contact-copy">
+          <span className="eyebrow">ESTAMOS AQUI PARA AJUDAR</span>
+          <h2 id="contact-title">Ainda ficou com alguma dúvida?</h2>
+          <p>Fale com a gente e entenda como a Fidelizarei pode fazer seus clientes voltarem mais vezes.</p>
+        </div>
+        <div className="contact-actions">
+          <a
+            className="contact-button contact-button-whatsapp"
+            href="https://wa.me/5571982185663?text=Olá!%20Tenho%20interesse%20em%20conhecer%20a%20Fidelizarei."
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="contact-icon" aria-hidden="true">◔</span>
+            <span><small>Fale pelo WhatsApp</small><b>(71) 98218-5663</b></span>
+            <i aria-hidden="true">↗</i>
+          </a>
+          <a className="contact-button contact-button-instagram" href="https://www.instagram.com/fidelizarei/" target="_blank" rel="noreferrer">
+            <span className="contact-icon" aria-hidden="true">◎</span>
+            <span><small>Acompanhe no Instagram</small><b>@fidelizarei</b></span>
+            <i aria-hidden="true">↗</i>
+          </a>
+        </div>
+      </section>
     </main>
   );
 }
