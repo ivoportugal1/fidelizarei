@@ -20,7 +20,7 @@ export type BillingState = {
 };
 
 export const billingPlans: Record<BillingInterval, { label: string; amount: number }> = {
-  monthly: { label: "Mensal", amount: 60 },
+    monthly: { label: "Mensal", amount: 79.9 },
   yearly: { label: "Anual", amount: 600 },
 };
 
@@ -236,6 +236,7 @@ export async function createStripeSubscriptionCheckout(userId: string, userEmail
   params.set("payment_method_types[1]", "boleto");
   params.set("locale", "pt-BR");
   params.set("billing_address_collection", "auto");
+  params.set("allow_promotion_codes", "true");
 
   const session = await stripePost<StripeCheckoutSession>("/checkout/sessions", params);
   if (!session.url) throw new Error("stripe_checkout_url_missing");
