@@ -237,3 +237,6 @@
 .contact-button b { font-size:14px; letter-spacing:-.25px; }
 .contact-button i { font-size:18px; font-style:normal; }
 @media (max-width:700px) { .landing-contact { grid-template-columns:1fr; gap:21px; padding:23px 19px; border-radius:18px; }.landing-contact h2 { font-size:29px; }.contact-button { min-height:70px; } }
+
+
+.signup-card label:has(input[placeholder="Digite seu cupom, se tiver"]) { display: none; }
