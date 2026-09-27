@@ -36,7 +36,7 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
   async function applyCoupon() {
     setCouponLoading(true);
     setError("");
-    const response = await fetch("/api/billing/coupon", {
+        const response = await fetch("/api/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ couponCode, interval: selectedPlan }),
@@ -47,7 +47,7 @@ export default function BillingPageClient({ billing }: { billing: BillingState }
       setError("Cupom inválido ou expirado.");
       return;
     }
-    window.location.href = "/dashboard";
+        window.location.href = body.checkoutUrl;
   }
 
   return (
