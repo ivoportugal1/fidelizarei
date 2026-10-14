@@ -23,6 +23,12 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState("");
   const [isAppleDevice, setIsAppleDevice] = useState(false);
+  const [pointCode, setPointCode] = useState("");
+  const [pointResult, setPointResult] = useState<"pending" | "added" | "failed" | null>(null);
+
+  useEffect(() => {
+    setPointCode(new URLSearchParams(window.location.search).get("code") || "");
+  }, []);
 
   useEffect(() => {
     fetch(`/api/join/${encodeURIComponent(programId)}`)
@@ -58,6 +64,17 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
       return;
     }
     setJoined(true);
+    if (pointCode) {
+      setPointResult("pending");
+      // Same QR that opened this page: credit its point right after enrolling.
+      const redeem = await fetch(`/api/redeem/${encodeURIComponent(pointCode)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cpf }),
+      }).catch(() => null);
+      const redeemBody = await redeem?.json().catch(() => null);
+      setPointResult(redeem?.ok && redeemBody?.ok ? "added" : "failed");
+    }
   }
 
   async function addGoogleWallet() {
@@ -103,9 +120,15 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
         </>}
         {info?.ok && ready && <>
           <div className="success-icon">✓</div>
-          <p className="eyebrow">{joined ? "CADASTRO CONCLUÍDO" : "VOCÊ JÁ PARTICIPA"}</p>
-          <h1>Seu cartão está<br />pronto para a Wallet.</h1>
-          <p className="redeem-text">Seu progresso começa em 0. Os pontos entram apenas pelos QR Codes de pontuação.</p>
+          <p className="eyebrow">{pointResult === "pending" ? "REGISTRANDO PONTO" : pointResult === "added" ? "PONTO ADICIONADO" : joined ? "CADASTRO CONCLUÍDO" : "VOCÊ JÁ PARTICIPA"}</p>
+          <h1>{pointResult === "pending" ? <>Cadastro feito.<br />Registrando seu ponto...</> : pointResult === "added" ? <>Cadastro feito e<br />1 ponto registrado.</> : <>Seu cartão está<br />pronto para a Wallet.</>}</h1>
+          <p className="redeem-text">{pointResult === "pending"
+            ? "Só um instante."
+            : pointResult === "added"
+            ? "Adicione o cartão à sua Wallet para acompanhar seus pontos."
+            : pointResult === "failed"
+              ? "Cadastro concluído, mas este QR não está mais disponível. Seu progresso começa em 0."
+              : "Seu progresso começa em 0. Os pontos entram apenas pelos QR Codes de pontuação."}</p>
           <div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(programId)}`}>Adicionar à Apple Wallet</a></div>
           {walletError && <p className="form-error">{walletError}</p>}
         </>}

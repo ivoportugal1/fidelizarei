@@ -6,6 +6,15 @@ import { hashCpf, isValidCpf, normalizeCpf } from "@/lib/customer-cpf";
 import { ensureLoyaltySchema } from "@/lib/loyalty-schema";
 import { getCodeForEnrollment, redeemCode } from "@/lib/redemption";
 
+// True when the QR was generated automatically by a PDV integration. Any failure
+// (for example the integration tables not existing yet) means "regular QR".
+async function isPdvCode(codeId: string) {
+  try {
+    const result = await query("select 1 from beefood_orders where redemption_code_id = $1 limit 1", [codeId]);
+    return Boolean(result.rowCount);
+  } catch { return false; }
+}
+
 export const runtime = "nodejs";
 
 function errorResponse(message: string, status = 400) { return NextResponse.json({ ok: false, error: message }, { status }); }
@@ -15,7 +24,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
     const { code } = await params;
     const record = await getCodeForEnrollment(code);
     if (!record) return errorResponse("invalid_code", 404);
-    return NextResponse.json({ ok: true, status: record.status, programId: record.program_id, programName: record.program_name, organizationName: record.organization_name, joinUrl: `/join/${record.program_id}` });
+    const pdv = await isPdvCode(record.id);
+    return NextResponse.json({ ok: true, status: record.status, programId: record.program_id, programName: record.program_name, organizationName: record.organization_name, joinUrl: `/join/${record.program_id}`, joinWithCode: pdv });
   } catch { return errorResponse("service_unavailable", 503); }
 }
 

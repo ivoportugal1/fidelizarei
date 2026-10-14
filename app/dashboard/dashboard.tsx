@@ -94,7 +94,7 @@ async function printQr(value: string, title: string) {
   printWindow.document.close();
 }
 
-export default function Dashboard({ initialData }: { initialData: DashboardData }) {
+export default function Dashboard({ initialData, integrations }: { initialData: DashboardData; integrations?: { beefood?: boolean } }) {
   const [data, setData] = useState(initialData);
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState("Visão geral");
@@ -229,6 +229,7 @@ export default function Dashboard({ initialData }: { initialData: DashboardData 
               <span>{dashboardNavIcons[item]}</span>{item}
             </button>
           ))}
+          {integrations?.beefood && <a className="nav-item" href="/integracoes/beefood"><span>⚡</span>Integrações</a>}
         </nav>
         <div className="sidebar-bottom">
           <button className="profile" onClick={logout}><span>{initials(data.user.name)}</span><b>Sair</b><i>↗</i></button>

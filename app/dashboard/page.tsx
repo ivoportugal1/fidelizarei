@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getCurrentUser, isPlatformAdmin } from "@/lib/auth";
 import { getDashboardData } from "@/lib/admin-data";
 import { getBillingStateForUser } from "@/lib/billing";
+import { hasBeefoodIntegration } from "@/lib/integrations/beefood/admin";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -16,5 +17,6 @@ export default async function DashboardPage() {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
   const origin = host ? `${protocol}://${host}` : "";
   const data = await getDashboardData(user.id, user.email, user.full_name, origin);
-  return <Dashboard initialData={data} />;
+  const beefood = await hasBeefoodIntegration(billing.organizationId);
+  return <Dashboard initialData={data} integrations={{ beefood }} />;
 }

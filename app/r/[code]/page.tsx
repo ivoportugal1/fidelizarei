@@ -9,6 +9,7 @@ type CodeInfo = {
   programName?: string;
   organizationName?: string;
   joinUrl?: string;
+  joinWithCode?: boolean;
 };
 
 export default function RedeemPage({ params }: { params: Promise<{ code: string }> }) {
@@ -104,7 +105,8 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           </div>}
           {error && <p className="form-error">{error}</p>}
           <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && !cpf.trim())} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
-          {info.joinUrl && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
+          {info.joinUrl && info.joinWithCode && <a className="button button-light redeem-button" href={`${info.joinUrl}?code=${encodeURIComponent(code)}`}>Primeira vez? Cadastre-se e ganhe o ponto</a>}
+          {info.joinUrl && !info.joinWithCode && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
           <small>Código: {code}</small>
         </>}
         {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Abra seu ticket na Wallet para acompanhar seus pontos."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(result.program_id || info?.programId || "")}`}>Atualizar Apple Wallet</a></div>{isAppleDevice && <p className="redeem-text">Você está no iPhone. A Apple Wallet atualiza o ticket desta campanha.</p>}{walletError && <p className="form-error">{walletError}</p>}</>}

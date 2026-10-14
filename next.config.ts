@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Dev only: lets a phone on the same network open the local app (e.g. DEV_ALLOWED_ORIGINS=192.168.0.10).
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean),
 };
 
 export default nextConfig;
