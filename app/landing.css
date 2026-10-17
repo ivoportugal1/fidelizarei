@@ -2,7 +2,7 @@ html { scroll-behavior: smooth; }
 .lp { --g9:#14281F; --g7:#1E3A2E; --g5:#2F5A47; --mist:#DCE8E1; --y:#F4C430; --yd:#D9A91A; --paper:#F8F7F2; --line:#E6E3D8; --ink:#1b2b23; --muted:#5d6d64;
   background: var(--paper); color: var(--ink); font-family: var(--font-text), "Figtree", system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 .lp * { box-sizing: border-box; }
-.lp a { color: inherit; text-decoration: none; }
+.lp :where(a) { color: inherit; text-decoration: none; }
 .lp img { display: block; max-width: 100%; }
 .lp h1, .lp h2, .lp h3, .lp h4 { font-family: var(--font-display), "Outfit", system-ui, sans-serif; margin: 0; letter-spacing: -.03em; line-height: 1.08; color: var(--g7); }
 .lp :where(p) { margin: 0; }
