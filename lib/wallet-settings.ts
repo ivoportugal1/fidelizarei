@@ -14,6 +14,23 @@ export const POINT_THEMES = [
 
 export type PointTheme = typeof POINT_THEMES[number];
 
+// Fidelizarei brand defaults. Every company that has not customized its card gets these.
+export const BRAND_WALLET_COLORS = {
+  primary: "#1E3A2E",
+  secondary: "#F4C430",
+  background: "#F8F7F2",
+  text: "#F8F7F2",
+} as const;
+
+// The old default stored on every program (before the brand refresh). Nobody chose it,
+// so it is treated as "no choice" and replaced by the brand green.
+const LEGACY_DEFAULT_CARD_COLORS = ["#12635A", "#173D20"];
+
+export function brandCardColor(stored?: string | null) {
+  const value = (stored || "").toUpperCase();
+  return !value || LEGACY_DEFAULT_CARD_COLORS.includes(value) ? BRAND_WALLET_COLORS.primary : value;
+}
+
 export type WalletCardSettings = {
   businessName: string;
   programDescription: string;
@@ -73,10 +90,10 @@ export function defaultWalletSettings(input: {
     rewardText: input.rewardName,
     pointsGoal: input.pointsToReward,
     pointTheme: "universal",
-    primaryColor: input.backgroundColor || "#173D20",
-    secondaryColor: "#F2B80F",
-    backgroundColor: "#F8F3E8",
-    textColor: "#173D20",
+    primaryColor: brandCardColor(input.backgroundColor),
+    secondaryColor: BRAND_WALLET_COLORS.secondary,
+    backgroundColor: BRAND_WALLET_COLORS.background,
+    textColor: BRAND_WALLET_COLORS.text,
     progressLabel: "compras",
     rewardTitle: `Compre ${input.pointsToReward} e ganhe ${input.rewardName}`,
     accumulationText: "A cada compra válida, o cliente ganha 1 ponto.",

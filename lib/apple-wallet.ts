@@ -5,7 +5,7 @@ import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import sharp from "sharp";
 import { query } from "./database";
-import { defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
+import { BRAND_WALLET_COLORS, defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 const APPLE_WWDR_G4_PEM = `-----BEGIN CERTIFICATE-----
 MIIEVTCCAz2gAwIBAgIUE9x3lVJx5T3GMujM/+Uh88zFztIwDQYJKoZIhvcNAQEL
@@ -228,56 +228,15 @@ function progressIconSvg(input: {
 }) {
   const { theme, index, earned, x, y, size, earnedColor, unearnedColor, textColor } = input;
   if (theme === "universal") {
+    // Apple asks for no text inside strip images: earned points are a filled disc with a
+    // check mark, missing points are an outline.
     const radius = size / 2;
-    // Apple Wallet's image renderer can omit SVG <text> in strip images on
-    // some iOS versions. Draw the number as seven-segment vector strokes so
-    // every progress circle remains numbered without relying on a font.
-    const sevenSegmentNumber = (value: number, color: string) => {
-      const digits = String(value).slice(-2);
-      const digitWidth = size * 0.24;
-      const digitHeight = size * 0.43;
-      const gap = size * 0.055;
-      const totalWidth = digitWidth * digits.length + gap * (digits.length - 1);
-      const startX = x + radius - totalWidth / 2;
-      const startY = y + radius - digitHeight / 2;
-      const thickness = Math.max(2.5, size * 0.06);
-      const enabled: Record<string, string[]> = {
-        "0": ["a", "b", "c", "d", "e", "f"],
-        "1": ["b", "c"],
-        "2": ["a", "b", "g", "e", "d"],
-        "3": ["a", "b", "g", "c", "d"],
-        "4": ["f", "g", "b", "c"],
-        "5": ["a", "f", "g", "c", "d"],
-        "6": ["a", "f", "g", "e", "c", "d"],
-        "7": ["a", "b", "c"],
-        "8": ["a", "b", "c", "d", "e", "f", "g"],
-        "9": ["a", "b", "c", "d", "f", "g"],
-      };
-
-      return digits.split("").map((digit, digitIndex) => {
-        const left = startX + digitIndex * (digitWidth + gap);
-        const top = startY;
-        const middle = top + digitHeight / 2;
-        const right = left + digitWidth;
-        const bottom = top + digitHeight;
-        const inset = thickness * 0.7;
-        const segments: Record<string, string> = {
-          a: `M ${left + inset} ${top} L ${right - inset} ${top}`,
-          b: `M ${right} ${top + inset} L ${right} ${middle - inset}`,
-          c: `M ${right} ${middle + inset} L ${right} ${bottom - inset}`,
-          d: `M ${left + inset} ${bottom} L ${right - inset} ${bottom}`,
-          e: `M ${left} ${middle + inset} L ${left} ${bottom - inset}`,
-          f: `M ${left} ${top + inset} L ${left} ${middle - inset}`,
-          g: `M ${left + inset} ${middle} L ${right - inset} ${middle}`,
-        };
-        return (enabled[digit] || []).map((segment) => `<path d="${segments[segment]}"/>`).join("");
-      }).join("");
-    };
-    const numberColor = earned ? textColor : unearnedColor;
-    return `<g>
-      <circle cx="${x + radius}" cy="${y + radius}" r="${radius - 3}" fill="${earned ? earnedColor : "transparent"}" stroke="${earned ? earnedColor : unearnedColor}" stroke-width="4"/>
-      <g fill="none" stroke="${numberColor}" stroke-width="${Math.max(2.5, size * 0.06)}" stroke-linecap="round" stroke-linejoin="round">${sevenSegmentNumber(index + 1, numberColor)}</g>
-    </g>`;
+    const cx = x + radius;
+    const cy = y + radius;
+    if (earned) {
+      return `<g><circle cx="${cx}" cy="${cy}" r="${radius - 3}" fill="${earnedColor}"/><path d="M ${cx - radius * 0.42} ${cy + radius * 0.02} L ${cx - radius * 0.1} ${cy + radius * 0.34} L ${cx + radius * 0.46} ${cy - radius * 0.3}" fill="none" stroke="${textColor}" stroke-width="${Math.max(4, size * 0.1)}" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    }
+    return `<g><circle cx="${cx}" cy="${cy}" r="${radius - 3}" fill="none" stroke="${unearnedColor}" stroke-width="${Math.max(3, size * 0.05)}"/></g>`;
   }
 
   const paths = progressIconPaths[theme] ?? progressIconPaths.cafeteria;
@@ -308,6 +267,26 @@ function readableOn(color: string) {
   return luminance > 0.62 ? "#173D20" : "#FFF8E8";
 }
 
+function luminanceOf(hex: string) {
+  const normalized = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : "#000000";
+  const channel = (start: number) => {
+    const value = Number.parseInt(normalized.slice(start, start + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
+
+function contrastRatio(a: string, b: string) {
+  const [light, dark] = [luminanceOf(a), luminanceOf(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+// Apple asks for enough contrast between card colors and text; fall back to a readable color.
+function ensureContrast(foreground: string, background: string) {
+  const fg = /^#[0-9A-Fa-f]{6}$/.test(foreground) ? foreground : BRAND_WALLET_COLORS.text;
+  return contrastRatio(fg, background) >= 3 ? fg : readableOn(background);
+}
+
 function shortField(value: string, max = 44) {
   const clean = value.replace(/\s+/g, " ").trim();
   return clean.length > max ? `${clean.slice(0, max - 1).trim()}…` : clean;
@@ -324,49 +303,58 @@ function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || value;
 }
 
-async function buildAppleStripImages(input: {
+export async function buildAppleStripImages(input: {
   settings: WalletCardSettings;
   currentPoints: number;
   pointsGoal: number;
 }) {
   const { settings, currentPoints, pointsGoal } = input;
   const width = 1125;
-  const height = 369;
-  const cardGreen = settings.primaryColor || "#06420D";
-  const accent = settings.secondaryColor || "#14E28B";
-  const foreground = settings.textColor || readableOn(cardGreen);
+  const height = 432; // 375 x 144 pt at @3x (Apple's current store card strip size)
+  const cardGreen = settings.primaryColor || BRAND_WALLET_COLORS.primary;
+  const accent = settings.secondaryColor || BRAND_WALLET_COLORS.secondary;
+  const foreground = ensureContrast(settings.textColor || readableOn(cardGreen), cardGreen);
   const theme = normalizedProgressTheme(settings.pointTheme);
   const total = Math.max(1, Math.min(pointsGoal, 20));
   const earned = Math.max(0, Math.min(currentPoints, total));
-  const iconGap = total > 12 ? 10 : 18;
-  const iconSize = Math.floor(Math.min(86, (width - 160 - iconGap * (total - 1)) / total));
-  const progressWidth = iconSize * total + iconGap * (total - 1);
-  const startX = Math.round((width - progressWidth) / 2);
-  const startY = Math.round((height - iconSize) / 2);
-  const iconColor = accent;
-  const unearnedColor = foreground;
+  const rows = total > 10 ? 2 : 1;
+  const perRow = Math.ceil(total / rows);
+  const iconGap = perRow > 8 ? 16 : 30;
+  const iconSize = Math.floor(Math.min(rows === 1 ? 150 : 110, (width - 150 - iconGap * (perRow - 1)) / perRow));
+  const rowGap = 26;
+  const blockHeight = rows * iconSize + (rows - 1) * rowGap;
+  const startY = Math.round((height - blockHeight) / 2);
   const iconTextColor = readableOn(accent);
-  const icons = Array.from({ length: total }).map((_, index) => progressIconSvg({
-    theme,
-    index,
-    earned: index < earned,
-    x: startX + index * (iconSize + iconGap),
-    y: startY,
-    size: iconSize,
-    earnedColor: iconColor,
-    unearnedColor,
-    textColor: iconTextColor,
-  })).join("");
+  const icons = Array.from({ length: total }).map((_, index) => {
+    const row = Math.floor(index / perRow);
+    const inRow = index % perRow;
+    const countInRow = row === rows - 1 ? total - row * perRow : perRow;
+    const rowWidth = iconSize * countInRow + iconGap * (countInRow - 1);
+    const rowStartX = Math.round((width - rowWidth) / 2);
+    const icon = progressIconSvg({
+      theme,
+      index,
+      earned: index < earned,
+      x: rowStartX + inRow * (iconSize + iconGap),
+      y: startY + row * (iconSize + rowGap),
+      size: iconSize,
+      earnedColor: accent,
+      unearnedColor: foreground,
+      textColor: iconTextColor,
+    });
+    return `<g opacity="${index < earned ? 1 : 0.45}">${icon}</g>`;
+  }).join("");
 
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${width}" height="${height}" fill="#ffffff" fill-opacity="0.06"/>
     ${icons}
   </svg>`;
 
   const source = Buffer.from(svg);
   const [x1, x2, x3] = await Promise.all([
-    sharp(source).resize(375, 123, { fit: "cover" }).png().toBuffer(),
-    sharp(source).resize(750, 246, { fit: "cover" }).png().toBuffer(),
-    sharp(source).resize(1125, 369, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(375, 144, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(750, 288, { fit: "cover" }).png().toBuffer(),
+    sharp(source).resize(1125, 432, { fit: "cover" }).png().toBuffer(),
   ]);
   return { x1, x2, x3 };
 }
@@ -377,17 +365,23 @@ function passAuthToken(serialNumber: string) {
   return createHmac("sha256", secret).update(serialNumber).digest("hex");
 }
 
-async function getFallbackLogo() {
-  return readFile(path.join(process.cwd(), "public", "logo-fidelizarei-transparent.png"));
-}
+const CROWN_PATHS = `<g fill="#F4C430"><circle cx="430" cy="577" r="46"/><circle cx="626" cy="505" r="49"/><circle cx="822" cy="577" r="46"/><path d="M481 788 429 622 459 611 538 689 611 551 641 551 711 689 793 611 822 622 768 788Z"/></g>`;
+const CROWN_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="380 452 490 342">${CROWN_PATHS}</svg>`;
 
-async function buildAppleIconImages(logo: Buffer) {
-  const makeIcon = async (size: number) => sharp(logo)
-    .resize(size, size, { fit: "contain", background: { r: 255, g: 253, b: 244, alpha: 1 } })
-    .png()
-    .toBuffer();
 
-  const [x1, x2, x3] = await Promise.all([makeIcon(29), makeIcon(58), makeIcon(87)]);
+export async function buildAppleIconImages() {
+  // icon.png is 38 x 38 pt (HIG). The system rounds the corners, so the square is full bleed.
+  const makeIcon = async (size: number) => {
+    const crown = await sharp(Buffer.from(CROWN_SVG), { density: 300 })
+      .resize({ width: Math.round(size * 0.64) })
+      .png()
+      .toBuffer();
+    return sharp({ create: { width: size, height: size, channels: 4, background: BRAND_WALLET_COLORS.primary } })
+      .composite([{ input: crown, gravity: "center" }])
+      .png()
+      .toBuffer();
+  };
+  const [x1, x2, x3] = await Promise.all([makeIcon(38), makeIcon(76), makeIcon(114)]);
   return { x1, x2, x3 };
 }
 
@@ -466,19 +460,12 @@ async function buildAppleLogoBadgeImages(logo: Buffer) {
   return { x1, x2, x3 };
 }
 
-async function buildAppleLogoImages(logo: Buffer) {
-  const makeLogo = async (scale: number) => sharp(logo)
-    .resize(115 * scale, 36 * scale, { fit: "inside", position: "left", withoutEnlargement: true })
-    .extend({
-      top: 0,
-      bottom: 0,
-      left: 0,
-      right: 0,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
+export async function buildAppleLogoImages() {
+  // The Fidelizarei crown only (no wordmark). logo.png may be up to 160 x 50 pt.
+  const makeLogo = async (scale: number) => sharp(Buffer.from(CROWN_SVG), { density: 300 })
+    .resize({ height: 34 * scale })
     .png()
     .toBuffer();
-
   const [x1, x2, x3] = await Promise.all([makeLogo(1), makeLogo(2), makeLogo(3)]);
   return { x1, x2, x3 };
 }
@@ -586,7 +573,8 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const serialNumber = `apple-${context.customer_id}-${context.program_id}`;
   if (expectedSerialNumber && expectedSerialNumber !== serialNumber) throw new Error("pass_not_found");
   const customerName = titleCaseName(context.full_name || context.phone_e164 || "Cliente");
-  const displayName = firstName(customerName);
+  const nameParts = customerName.split(/\s+/).filter(Boolean);
+  const displayName = nameParts.length > 1 ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.` : nameParts[0] || "Cliente";
   const currentPoints = Number(context.points);
   const pointsGoal = Number(settings.pointsGoal || context.points_to_reward);
   const remaining = Math.max(pointsGoal - currentPoints, 0);
@@ -603,9 +591,8 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   const validUntil = validUntilDate(new Date(context.customer_created_at));
   const token = passAuthToken(serialNumber);
   const certificates = extractCertificatesFromP12();
-  const brandLogo = await getFallbackLogo();
-  const appIcons = await buildAppleIconImages(brandLogo);
-  const fixedBrandLogo = await buildAppleLogoImages(brandLogo);
+  const appIcons = await buildAppleIconImages();
+  const fixedBrandLogo = await buildAppleLogoImages();
   const stripImages = await buildAppleStripImages({
     settings,
     currentPoints,
@@ -613,14 +600,9 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
   });
   const backFields = [
     {
-      key: "back_status",
-      label: "Status",
-      value: passStatus,
-    },
-    {
-      key: "back_valid_until",
-      label: "Válido até",
-      value: formatValidUntil(new Date(context.customer_created_at)),
+      key: "back_how",
+      label: "Como funciona",
+      value: settings.accumulationText,
     },
     {
       key: "back_reward",
@@ -628,34 +610,26 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       value: settings.rewardText,
     },
     {
-      key: "back_customer",
-      label: "Cliente",
-      value: customerName,
+      key: "back_progress",
+      label: "Seu progresso",
+      value: `${progressValue} ${settings.progressLabel}.
+${statusText}.`,
     },
     {
-      key: "back_member_since",
-      label: "Membro desde",
-      value: formatMemberSince(new Date(context.customer_created_at)),
+      key: "back_customer",
+      label: "Cliente",
+      value: `${customerName}
+Membro desde ${formatMemberSince(new Date(context.customer_created_at))}`,
+    },
+    {
+      key: "back_valid_until",
+      label: "Cartão válido até",
+      value: formatValidUntil(new Date(context.customer_created_at)),
     },
     {
       key: "back_program_description",
       label: "Programa",
       value: settings.programDescription,
-    },
-    {
-      key: "back_rule",
-      label: "Como funciona",
-      value: settings.accumulationText,
-    },
-    {
-      key: "back_progress",
-      label: "Progresso",
-      value: `${progressValue} ${settings.progressLabel}.\n${progressText(settings.pointTheme, currentPoints, pointsGoal)}\n${statusText}.`,
-    },
-    {
-      key: "back_rewards",
-      label: "Recompensas disponíveis",
-      value: String(context.rewards_available),
     },
     ...(settings.termsText ? [{
       key: "back_terms",
@@ -683,58 +657,61 @@ export async function createAppleWalletPass(customerId: string, origin: string, 
       value: settings.contactPhone,
     }] : []),
     {
-      key: "back_powered_by",
-      label: "Powered by",
-      value: "Fidelizarei",
+      // Apple requires contact information for the organization that signed the pass.
+      key: "back_issued_by",
+      label: "Emitido por",
+      value: "Fidelizarei\ncontato@fidelizarei.com.br",
     },
   ];
+
+  const cardForeground = ensureContrast(settings.textColor || readableOn(settings.primaryColor), settings.primaryColor);
+  const cardLabel = contrastRatio(settings.secondaryColor, settings.primaryColor) >= 3 ? settings.secondaryColor : cardForeground;
 
   const pass = new PKPass({
     "pass.json": Buffer.from(JSON.stringify(passJson({
       serialNumber,
       organizationName: "Fidelizarei",
       description: settings.programDescription,
-      logoText: shortField(settings.businessName, 28),
+      logoText: shortField(settings.businessName, 24),
       backgroundColor: hexToRgb(settings.primaryColor),
-      foregroundColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
-      labelColor: hexToRgb(settings.textColor || readableOn(settings.primaryColor)),
+      foregroundColor: hexToRgb(cardForeground),
+      labelColor: hexToRgb(cardLabel),
       webServiceURL: `${origin}/api/wallet/apple`,
       authenticationToken: token,
       storeCard: {
+        // Header: the essential info, still visible when cards are stacked in Wallet.
         headerFields: [
           {
-            key: "campaign",
-            label: "CAMPANHA",
-            value: shortField(context.program_name, 20),
+            key: "points",
+            label: "PONTOS",
+            value: progressValue,
+            changeMessage: "Seu progresso agora é %@.",
           },
         ],
         primaryFields: [],
         secondaryFields: [
           {
-            key: "progress_text",
-            label: "PROGRESSO",
-            value: progressValue,
-            changeMessage: "Seu progresso agora é %@.",
-          },
-          {
             key: "customer",
             label: "CLIENTE",
             value: shortField(displayName, 18),
           },
+          {
+            key: "reward",
+            label: "RECOMPENSA",
+            value: shortField(settings.rewardText, 22),
+          },
         ],
         auxiliaryFields: [
           {
-            key: "status",
-            label: "STATUS",
-            value: passStatus,
-            changeMessage: "Status atualizado para %@.",
+            key: "remaining",
+            label: completed ? "STATUS" : "FALTAM",
+            value: completed ? "Prêmio disponível" : `${remaining} ${remaining === 1 ? "ponto" : "pontos"}`,
+            changeMessage: completed ? "Seu prêmio está disponível!" : undefined,
           },
           {
-            key: "valid_until",
-            label: "VALIDADE",
-            value: passDateValue(validUntil),
-            dateStyle: "PKDateStyleShort",
-            timeStyle: "PKDateStyleNone",
+            key: "member_since",
+            label: "MEMBRO DESDE",
+            value: formatMemberSince(new Date(context.customer_created_at)),
           },
         ],
         backFields,

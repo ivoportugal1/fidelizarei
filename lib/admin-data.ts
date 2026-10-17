@@ -175,7 +175,7 @@ export async function getDashboardData(userId: string, userEmail: string, userNa
       rewardName: row.reward_name,
       pointsToReward: row.points_to_reward,
       pointsPerCode: row.points_per_code,
-      backgroundColor: row.pass_background_color,
+      backgroundColor: walletSettings.primaryColor,
     },
     campaigns: campaigns.rows.map((campaign) => ({
       id: campaign.id,
