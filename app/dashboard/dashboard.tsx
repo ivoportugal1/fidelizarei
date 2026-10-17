@@ -846,8 +846,8 @@ function PointIcon({ theme }: { theme: PointTheme }) {
 
 function FixedFidelizareiLogo() {
   return (
-    <span className="apple-logo-frame apple-logo-pill">
-      <img src="/logo-fidelizarei-transparent.png" alt="Fidelizarei" />
+    <span className="apple-logo-crown">
+      <img src="/brand/crown-gold.png" alt="Fidelizarei" />
     </span>
   );
 }
@@ -866,16 +866,16 @@ function AppleWalletPreview({ settings, points }: { settings: WalletSettings; po
         <FixedFidelizareiLogo />
         <strong>{settings.businessName}</strong>
       </div>
-      <div className="apple-simple-count"><small>{settings.progressLabel.toUpperCase()}</small><b>{points}/{settings.pointsGoal}</b></div>
+      <div className="apple-simple-count"><small>PONTOS</small><b>{points} de {settings.pointsGoal}</b></div>
     </div>
     <div className="apple-simple-progress" style={{ backgroundColor: settings.primaryColor }}>
       <ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.secondaryColor} accent={settings.secondaryColor} />
     </div>
     <div className="apple-simple-fields">
-      <div><small>PROGRESSO</small><b>{points}/{settings.pointsGoal} {settings.progressLabel}</b></div>
-      <div><small>CLIENTE</small><b>{previewCustomer.name.split(" ")[0]}</b></div>
-      <div><small>STATUS</small><b>{completed ? "Disponível" : "Ativo"}</b></div>
-      <div><small>VALIDADE</small><b>30/09/2026</b></div>
+      <div><small>CLIENTE</small><b>{previewCustomer.name.split(" ")[0]} S.</b></div>
+      <div><small>RECOMPENSA</small><b>{settings.rewardText}</b></div>
+      <div><small>{completed ? "STATUS" : "FALTAM"}</small><b>{completed ? "Prêmio disponível" : `${Math.max(settings.pointsGoal - points, 0)} ${settings.pointsGoal - points === 1 ? "ponto" : "pontos"}`}</b></div>
+      <div><small>MEMBRO DESDE</small><b>set 2026</b></div>
     </div>
   </div>;
 }
@@ -885,7 +885,7 @@ function GoogleWalletPreview({ settings, points }: { settings: WalletSettings; p
   const remaining = Math.max(settings.pointsGoal - points, 0);
   return <div className="google-pass" style={{ "--google-primary": settings.primaryColor, "--google-secondary": settings.secondaryColor } as CSSProperties}>
     <div className="google-hero" style={{ backgroundColor: settings.primaryColor }}>{settings.coverUrl ? <img src={settings.coverUrl} alt="" /> : null}<div className="google-hero-shade" /><div><small>Google Wallet</small><strong>{settings.businessName}</strong><span>{settings.programDescription}</span></div></div>
-    <div className="google-pass-head"><div className="google-logo"><img src="/logo-fidelizarei-transparent.png" alt="" /></div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
+    <div className="google-pass-head"><div className="google-logo"><img src="/brand/wallet-logo.png" alt="" /></div><div><h3>{settings.businessName}</h3><p>{settings.programDescription}</p></div><PoweredBy /></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 10h14v10H5z"/><path d="M4 10h16V7H4z"/><path d="M12 7v13"/><path d="M8.5 7C6 5 8.5 3 12 7c3.5-4 6-2 3.5 0"/></svg></span><div><b>Recompensa</b><p>{settings.rewardText}</p></div></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg></span><div><b>Seu progresso</b><p>{points} de {settings.pointsGoal} {settings.progressLabel}. {completed ? settings.completedMessage : `Faltam ${remaining} ${settings.progressLabel}.`}</p><ProgressMarks theme={settings.pointTheme} total={settings.pointsGoal} current={points} fill={settings.primaryColor} accent={settings.secondaryColor} /></div></div>
     <div className="google-detail"><span className="detail-icon"><svg viewBox="0 0 24 24"><path d="M5 8h14v8H5z"/><path d="M8 5h8"/><path d="M8 19h8"/></svg></span><div><b>Como acumular</b><p>{settings.accumulationText}</p></div></div>

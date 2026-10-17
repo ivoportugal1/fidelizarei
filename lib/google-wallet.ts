@@ -195,12 +195,12 @@ export async function createGoogleWalletSaveLink(customerId: string, origin: str
     hexBackgroundColor: settings.primaryColor,
     programLogo: {
       sourceUri: {
-        uri: `${origin}/logo-fidelizarei-transparent.png`,
+        uri: `${origin}/brand/wallet-logo.png`,
       },
       contentDescription: {
         defaultValue: {
           language: "pt-BR",
-          value: "Logo Fidelizarei",
+          value: "Coroa Fidelizarei",
         },
       },
     },

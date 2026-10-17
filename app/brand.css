@@ -154,3 +154,13 @@ h1, h2 { letter-spacing: -.035em; }
 .wallet-editor-grid { grid-template-columns: minmax(300px, .8fr) minmax(0, 1.2fr); }
 .wallet-previews { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
 @media (max-width: 1320px) { .wallet-editor-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Wallet previews: crown-only logo, same as the real cards. */
+.apple-logo-crown { display: inline-flex; align-items: center; }
+.apple-logo-crown img { height: 34px; width: auto; display: block; }
+.google-logo { overflow: hidden; }
+.google-logo img { width: 100%; height: 100%; object-fit: cover; padding: 0; background: transparent; display: block; }
+.apple-simple-brand strong { font-size: 17px; letter-spacing: -.3px; }
+.apple-simple-count b { font-size: 22px; font-weight: 600; }
+.apple-simple-fields { gap: 14px 16px; padding: 16px 20px 22px; }
+.apple-simple-fields b { font-size: 16px; font-weight: 600; }
