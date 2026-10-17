@@ -164,3 +164,10 @@ h1, h2 { letter-spacing: -.035em; }
 .apple-simple-count b { font-size: 22px; font-weight: 600; }
 .apple-simple-fields { gap: 14px 16px; padding: 16px 20px 22px; }
 .apple-simple-fields b { font-size: 16px; font-weight: 600; }
+
+/* Apple preview strip: draw the points like the real pass strip (no boxes). */
+.apple-simple-progress .progress-marks { gap: 18px; }
+.apple-simple-progress .progress-marks span { width: 44px; height: 44px; border: 0; border-radius: 0; background: transparent; color: var(--apple-text); opacity: .45; }
+.apple-simple-progress .progress-marks span.done { color: var(--apple-secondary); background: transparent; opacity: 1; }
+.apple-simple-progress .progress-marks span svg { width: 100%; height: 100%; }
+.apple-simple-progress { background-image: linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)); }

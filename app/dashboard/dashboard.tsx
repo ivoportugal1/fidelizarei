@@ -829,8 +829,15 @@ function CardDesigner({
 function ProgressMarks({ theme, total, current, fill, accent }: { theme: PointTheme; total: number; current: number; fill: string; accent?: string }) {
   return <div className={theme === "universal" ? "progress-marks universal" : "progress-marks"}>{Array.from({ length: total }).map((_, index) => {
     const done = index < current;
-    return <span key={index} className={done ? "done" : ""} style={{ "--mark-color": fill, "--mark-accent": accent || fill } as CSSProperties}>{theme === "universal" ? index + 1 : <PointIcon theme={theme} />}</span>;
+    return <span key={index} className={done ? "done" : ""} style={{ "--mark-color": fill, "--mark-accent": accent || fill } as CSSProperties}>{theme === "universal" ? <UniversalMark done={done} /> : <PointIcon theme={theme} />}</span>;
   })}</div>;
+}
+
+// Same look as the real Apple strip for the universal theme: check in a disc / empty ring (no numbers).
+function UniversalMark({ done }: { done: boolean }) {
+  return done
+    ? <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21" fill="currentColor" stroke="none" /><path d="m14 25 7 7 14-16" fill="none" stroke="var(--apple-primary, #1E3A2E)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    : <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="3.5" /></svg>;
 }
 
 function PointIcon({ theme }: { theme: PointTheme }) {
