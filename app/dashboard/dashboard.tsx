@@ -532,10 +532,10 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
       </section>
       <article className="panel activity">
         <div className="panel-header"><div><p className="eyebrow">Configure sua oferta</p><h3>Criar nova campanha</h3><p>Defina a recompensa, os pontos necessários e até quando ela ficará disponível.</p></div></div>
-        <div className="coupon-box">
-          <label>Nome<input value={newCampaign.name} onChange={(event) => setNewCampaign((current) => ({ ...current, name: event.target.value }))} placeholder="Programa de Fidelidade" /></label>
-          <label>Recompensa<input value={newCampaign.rewardName} onChange={(event) => setNewCampaign((current) => ({ ...current, rewardName: event.target.value }))} placeholder="Recompensa" /></label>
-          <label>Meta<input type="number" min={1} max={1000} value={newCampaign.pointsToReward} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsToReward: Number(event.target.value) }))} /></label>
+        <div className="campaign-form">
+          <label>Nome da campanha<input value={newCampaign.name} onChange={(event) => setNewCampaign((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Cartão fidelidade do verão" /></label>
+          <label>Recompensa<input value={newCampaign.rewardName} onChange={(event) => setNewCampaign((current) => ({ ...current, rewardName: event.target.value }))} placeholder="Ex.: Lavagem grátis" /></label>
+          <label>Pontos para ganhar<input type="number" min={1} max={1000} value={newCampaign.pointsToReward} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsToReward: Number(event.target.value) }))} /></label>
           <label>Pontos por QR<input type="number" min={1} max={100} value={newCampaign.pointsPerCode} onChange={(event) => setNewCampaign((current) => ({ ...current, pointsPerCode: Number(event.target.value) }))} /></label>
           <label>Válida até (opcional)<input type="date" value={newCampaign.validUntil} onChange={(event) => setNewCampaign((current) => ({ ...current, validUntil: event.target.value }))} /></label>
           <button className="button button-dark" disabled={savingId === "new"} onClick={createCampaign}>{savingId === "new" ? "Criando..." : "Criar campanha"}</button>
@@ -544,24 +544,43 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
       </article>
       <article className="panel activity">
         <div className="panel-header"><div><h3>Campanhas existentes</h3><p>Escolha qual campanha será usada para gerar QR de adesão e pontuação.</p></div></div>
-        <table>
-          <thead><tr><th>NOME</th><th>RECOMPENSA</th><th>META</th><th>PONTOS/QR</th><th>VALIDADE</th><th>STATUS</th><th>USAR</th><th>AÇÃO</th></tr></thead>
-          <tbody>{campaigns.length ? campaigns.map((campaign) => {
+        <div className="campaign-list">
+          {campaigns.length ? campaigns.map((campaign) => {
             const draft = drafts[campaign.id] || campaign;
+            const selected = selectedCampaignId === campaign.id;
+            const dirty = draft.name !== campaign.name || draft.rewardName !== campaign.rewardName || draft.pointsToReward !== campaign.pointsToReward
+              || draft.pointsPerCode !== campaign.pointsPerCode || (draft.validUntil || null) !== (campaign.validUntil || null) || draft.active !== campaign.active;
             return (
-              <tr key={campaign.id}>
-                <td><input value={draft.name} onChange={(event) => updateDraft(campaign.id, "name", event.target.value)} /></td>
-                <td><input value={draft.rewardName} onChange={(event) => updateDraft(campaign.id, "rewardName", event.target.value)} /></td>
-                <td><input type="number" min={1} max={1000} value={draft.pointsToReward} onChange={(event) => updateDraft(campaign.id, "pointsToReward", Number(event.target.value))} /></td>
-                <td><input type="number" min={1} max={100} value={draft.pointsPerCode} onChange={(event) => updateDraft(campaign.id, "pointsPerCode", Number(event.target.value))} /></td>
-                <td><input type="date" value={draft.validUntil || ""} onChange={(event) => updateDraft(campaign.id, "validUntil", event.target.value || null)} /></td>
-                <td><label className="inline-check"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft(campaign.id, "active", event.target.checked)} /> Ativa</label></td>
-                <td>{selectedCampaignId === campaign.id ? <span className="status ready">Selecionada</span> : <button className="link-button" disabled={!draft.active} onClick={() => onSelectCampaign(campaign.id)}>Usar nos QRs</button>}</td>
-                <td className="table-actions"><button className="reward-action" disabled={savingId === campaign.id} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : "Salvar"}</button><button className="link-button danger" disabled={savingId === campaign.id} onClick={() => deleteCampaign(campaign.id, campaign.name)}>Apagar</button></td>
-              </tr>
+              <section key={campaign.id} className={selected ? "campaign-card is-selected" : "campaign-card"}>
+                <header className="campaign-head">
+                  <div>
+                    <strong>{draft.name || "Campanha sem nome"}</strong>
+                    <small>{draft.pointsToReward} pontos para ganhar: {draft.rewardName || "recompensa"}</small>
+                  </div>
+                  <div className="campaign-badges">
+                    {selected && <span className="status ready">Usada nos QR codes</span>}
+                    <span className={draft.active ? "status ok" : "status"}>{draft.active ? "Ativa" : "Pausada"}</span>
+                  </div>
+                </header>
+                <div className="campaign-fields">
+                  <label>Nome da campanha<input value={draft.name} onChange={(event) => updateDraft(campaign.id, "name", event.target.value)} /></label>
+                  <label>Recompensa<input value={draft.rewardName} onChange={(event) => updateDraft(campaign.id, "rewardName", event.target.value)} /></label>
+                  <label>Pontos para ganhar<input type="number" min={1} max={1000} value={draft.pointsToReward} onChange={(event) => updateDraft(campaign.id, "pointsToReward", Number(event.target.value))} /></label>
+                  <label>Pontos por QR<input type="number" min={1} max={100} value={draft.pointsPerCode} onChange={(event) => updateDraft(campaign.id, "pointsPerCode", Number(event.target.value))} /></label>
+                  <label>Válida até<input type="date" value={draft.validUntil || ""} onChange={(event) => updateDraft(campaign.id, "validUntil", event.target.value || null)} /></label>
+                </div>
+                <footer className="campaign-foot">
+                  <label className="switch"><input type="checkbox" checked={draft.active} onChange={(event) => updateDraft(campaign.id, "active", event.target.checked)} /><i aria-hidden="true" />{draft.active ? "Campanha ativa" : "Campanha pausada"}</label>
+                  <div className="campaign-actions">
+                    {!selected && <button className="button button-light" disabled={!draft.active} onClick={() => onSelectCampaign(campaign.id)}>Usar nos QR codes</button>}
+                    <button className="button button-dark" disabled={savingId === campaign.id || !dirty} onClick={() => saveCampaign(campaign.id)}>{savingId === campaign.id ? "Salvando..." : dirty ? "Salvar alterações" : "Salvo"}</button>
+                    <button className="link-button danger" disabled={savingId === campaign.id} onClick={() => deleteCampaign(campaign.id, campaign.name)}>Apagar</button>
+                  </div>
+                </footer>
+              </section>
             );
-          }) : <tr><td colSpan={8}>Nenhuma campanha cadastrada.</td></tr>}</tbody>
-        </table>
+          }) : <p className="campaign-empty">Nenhuma campanha ainda. Crie a primeira no formulário acima.</p>}
+        </div>
       </article>
     </div>
   );

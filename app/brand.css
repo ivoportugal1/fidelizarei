@@ -89,3 +89,68 @@ h1, h2 { letter-spacing: -.035em; }
   .sidebar .nav-item { grid-template-columns: 36px minmax(0, 1fr); min-height: 52px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; border-radius: 13px; }
   .sidebar .nav-item span { width: 32px; height: 32px; }
 }
+
+/* Form controls inside the panel: one consistent, readable style. */
+.app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"]),
+.app-shell select,
+.app-shell textarea {
+  height: 44px; border: 1px solid #d9d4c2; border-radius: 11px; padding: 0 13px; background: #fff; color: var(--ink);
+  font: 500 14px var(--sans); width: 100%; min-width: 0; transition: border-color .15s, box-shadow .15s;
+}
+.app-shell textarea { height: auto; padding: 11px 13px; }
+.app-shell input:focus-visible, .app-shell select:focus-visible, .app-shell textarea:focus-visible {
+  outline: none; border-color: var(--brand-green-soft); box-shadow: 0 0 0 3px rgba(244,196,48,.45);
+}
+.app-shell input::placeholder { color: #9aa59d; font-weight: 400; }
+.app-shell label { font-family: var(--sans); }
+
+/* Campaigns: one card per campaign instead of a cramped table. */
+.campaign-list { display: grid; gap: 14px; padding: 4px 21px 21px; }
+.campaign-card { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 18px 20px; display: grid; gap: 16px; }
+.campaign-card.is-selected { border-color: var(--brand-yellow); box-shadow: 0 0 0 3px rgba(244,196,48,.28); }
+.campaign-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.campaign-head strong { display: block; font: 800 18px var(--display); letter-spacing: -.02em; color: var(--brand-green); }
+.campaign-head small { color: var(--muted); font-size: 13px; }
+.campaign-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.status.ok { background: var(--brand-mist); color: var(--brand-green); }
+.campaign-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.campaign-fields label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 700; color: #46564d; }
+.campaign-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--line); }
+.campaign-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.campaign-actions .button { padding: 11px 16px; font-size: 14px; }
+.campaign-actions .button:disabled { opacity: .5; cursor: not-allowed; }
+.campaign-empty { padding: 28px; text-align: center; color: var(--muted); }
+.switch { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--brand-green); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch i { width: 42px; height: 24px; border-radius: 99px; background: #c9c4b0; position: relative; transition: background .15s; flex: none; }
+.switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch input:checked + i { background: var(--brand-green); }
+.switch input:checked + i::after { transform: translateX(18px); }
+.switch input:focus-visible + i { box-shadow: 0 0 0 3px rgba(244,196,48,.55); }
+
+/* Create-campaign form (replaces the coupon-style box). */
+.campaign-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; align-items: end; padding: 6px 21px 22px; }
+.campaign-form label { display: grid; gap: 7px; font-size: 12.5px; font-weight: 700; color: #46564d; }
+.campaign-form input { text-transform: none; }
+.campaign-form .button { height: 44px; }
+.campaign-form + .muted, .campaign-form + .form-error { padding: 0 21px 18px; margin: 0; }
+
+/* Consent checkbox on signup: small, inline with its text. */
+.tracking-consent { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.tracking-consent input[type="checkbox"] { width: 18px; height: 18px; min-width: 18px; padding: 0; margin: 2px 0 0; accent-color: var(--brand-green); }
+
+/* Responsive fixes found in the audit. */
+.empty-qr { flex-wrap: wrap; gap: 22px 28px; padding: 26px; max-width: none; align-items: flex-start; }
+.empty-qr > div { flex: 1 1 210px; min-width: 0; }
+.empty-qr h3 { font-family: var(--display); letter-spacing: -.02em; }
+.panel.activity { overflow-x: auto; }
+.panel.activity table { min-width: 560px; }
+@media (max-width: 700px) {
+  .empty-qr { padding: 20px; }
+  .empty-qr canvas { max-width: 100%; height: auto; }
+}
+
+/* "Personalizar cartão": no horizontal scroll on laptop widths. */
+.wallet-editor-grid { grid-template-columns: minmax(300px, .8fr) minmax(0, 1.2fr); }
+.wallet-previews { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+@media (max-width: 1320px) { .wallet-editor-grid { grid-template-columns: minmax(0, 1fr); } }
