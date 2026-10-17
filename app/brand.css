@@ -1,0 +1,91 @@
+/* Fidelizarei brand layer. Loaded last so it re-skins the existing screens
+   (colors, type, sidebar) without touching their layout rules.
+   Palette: verde #1E3A2E, amarelo #F4C430, papel #F8F7F2. */
+:root {
+  --brand-green: #1E3A2E;
+  --brand-green-deep: #14281F;
+  --brand-green-soft: #2F5A47;
+  --brand-mist: #DCE8E1;
+  --brand-yellow: #F4C430;
+  --brand-yellow-deep: #D9A91A;
+  --brand-paper: #F8F7F2;
+  --ink: #1b2b23;
+  --muted: #6B776F;
+  --cream: var(--brand-paper);
+  --line: #E6E3D8;
+  --mint: var(--brand-mist);
+  --coral: var(--brand-yellow);
+  --green: var(--brand-green);
+  --display: var(--font-display), "Outfit", system-ui, sans-serif;
+  --sans: var(--font-text), "Figtree", system-ui, sans-serif;
+  --mono: var(--font-text), "Figtree", system-ui, sans-serif;
+}
+
+body { background: var(--brand-paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, .metric b, .pass-count b, .welcome h2, .section-intro h2 { font-family: var(--display); }
+h1, h2 { letter-spacing: -.035em; }
+
+/* Small labels: quiet sentence case instead of spaced monospace capitals. */
+.eyebrow { font: 700 13px var(--sans); letter-spacing: 0; color: var(--brand-green-soft); }
+.topbar p, .activity th, .axis i, .bars small, .metric span, .date { font-family: var(--sans); letter-spacing: 0; }
+.activity th { text-transform: none; font-size: 11px; font-weight: 700; color: var(--muted); }
+
+/* Buttons: yellow is the one highlight, green is the structure. */
+.button { border-radius: 11px; font-weight: 700; }
+.button-coral { background: var(--brand-yellow); color: var(--brand-green-deep); }
+.button-coral:hover { background: var(--brand-yellow-deep); }
+.button-dark { background: var(--brand-green); color: #fff; }
+.button-light { border-color: var(--line); color: var(--brand-green); }
+.link-button { color: var(--brand-green-soft); }
+
+/* Sidebar: deep green with the light logo, on desktop and in the mobile drawer. */
+.app-shell { background: var(--brand-paper); }
+.app-shell .sidebar { background: var(--brand-green); border-right: 0; color: #fff; }
+.sidebar .brand-logo { display: block; padding: 4px 8px 26px; }
+.sidebar .brand-logo img { display: block; width: 158px; height: auto; }
+.sidebar-head .brand-logo { padding: 4px 8px 22px; }
+.sidebar .company-switcher { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.12); color: #fff; }
+.sidebar .company-switcher small { color: rgba(255,255,255,.62); }
+.sidebar .company-logo { background: var(--brand-yellow); color: var(--brand-green-deep); font-family: var(--display); font-weight: 800; }
+.sidebar .nav-item { color: rgba(248,247,242,.78); }
+.sidebar .nav-item span { background: transparent; color: inherit; }
+.sidebar .nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+.sidebar .nav-item.active { background: rgba(244,196,48,.17); color: var(--brand-yellow); }
+.sidebar .nav-item.active span { background: transparent; color: var(--brand-yellow); }
+.sidebar .nav-item:after { color: currentColor; }
+.sidebar .profile { color: rgba(248,247,242,.82); background: transparent; border-color: rgba(255,255,255,.14); }
+.sidebar .profile span { background: var(--brand-yellow); color: var(--brand-green-deep); }
+.sidebar .profile i { color: rgba(248,247,242,.6); }
+.sidebar-close { background: rgba(255,255,255,.12); }
+
+/* Workspace */
+.topbar { background: var(--brand-paper); border-bottom-color: var(--line); }
+.topbar h1 { font-family: var(--display); font-weight: 800; letter-spacing: -.035em; }
+.panel, .metric { border-color: var(--line); border-radius: 14px; }
+.metric b { font-weight: 800; letter-spacing: -.04em; }
+.metric span { background: var(--brand-mist); color: var(--brand-green); }
+.avatar { background: var(--brand-mist); color: var(--brand-green); font-family: var(--sans); font-weight: 700; }
+.points { color: var(--brand-green-soft); }
+.status.ready { background: #FCEFC2; color: #7a5a00; }
+.pass-card { background: linear-gradient(160deg, var(--brand-green), var(--brand-green-deep)); }
+.pass-mark { background: var(--brand-yellow); color: var(--brand-green-deep); }
+.pass-dots i { background: var(--brand-yellow); }
+.bars span { background: #B9D1C4; }
+.bars > div:nth-child(6) span { background: var(--brand-green); }
+.trial-banner { background: #FCF3D2; }
+
+/* Customer pages (QR, join) */
+.redeem-page { background: var(--brand-paper); }
+.redeem-brand span { background: var(--brand-yellow); color: var(--brand-green-deep); font-family: var(--display); }
+.redeem-card h1 { font-family: var(--display); }
+.redeem-illustration, .success-icon { background: var(--brand-mist); color: var(--brand-green); }
+.redeem-footer span { color: var(--brand-yellow-deep); }
+.progress span { background: var(--brand-yellow); }
+
+/* Navigation: real icons, calmer sizing, no decorative arrows. */
+.sidebar .nav-item span { display: grid; place-items: center; }
+.sidebar .nav-item:after { content: none; }
+@media (max-width: 900px) {
+  .sidebar .nav-item { grid-template-columns: 36px minmax(0, 1fr); min-height: 52px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; border-radius: 13px; }
+  .sidebar .nav-item span { width: 32px; height: 32px; }
+}

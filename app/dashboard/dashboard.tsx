@@ -1,4 +1,5 @@
 "use client";
+import { NavIcon } from "./nav-icons";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
@@ -68,7 +69,6 @@ const progressEmoji: Record<PointTheme, string> = {
 };
 
 const dashboardNavItems = ["Visão geral", "Clientes", "Campanhas", "QR Codes", "Recompensas", "Personalizar cartão", "Perfil"];
-const dashboardNavIcons = { "Visão geral": "▦", Clientes: "♙", Campanhas: "◌", "QR Codes": "▣", Recompensas: "♢", "Personalizar cartão": "✦", Perfil: "☰" } as Record<string, string>;
 
 function QrPreview({ value }: { value: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -216,7 +216,7 @@ export default function Dashboard({ initialData, integrations }: { initialData: 
       {menuOpen && <button className="sidebar-overlay" aria-label="Fechar menu" onClick={() => setMenuOpen(false)} />}
       <aside className={menuOpen ? "sidebar open" : "sidebar"}>
         <div className="sidebar-head">
-          <a className="brand" href="/">Fidelizarei</a>
+          <a className="brand brand-logo" href="/" aria-label="Fidelizarei"><img src="/brand/logo-light.png" alt="Fidelizarei" /></a>
           <button className="sidebar-close" aria-label="Fechar menu" onClick={() => setMenuOpen(false)}>×</button>
         </div>
         <div className="company-switcher">
@@ -226,10 +226,10 @@ export default function Dashboard({ initialData, integrations }: { initialData: 
         <nav>
           {dashboardNavItems.map((item) => (
             <button key={item} className={active === item ? "nav-item active" : "nav-item"} onClick={() => { setActive(item); setMenuOpen(false); }}>
-              <span>{dashboardNavIcons[item]}</span>{item}
+              <span><NavIcon name={item} /></span>{item}
             </button>
           ))}
-          {integrations?.beefood && <a className="nav-item" href="/integracoes/beefood"><span>⚡</span>Integrações</a>}
+          {integrations?.beefood && <a className="nav-item" href="/integracoes/beefood"><span><NavIcon name="Integrações" /></span>Integrações</a>}
         </nav>
         <div className="sidebar-bottom">
           <button className="profile" onClick={logout}><span>{initials(data.user.name)}</span><b>Sair</b><i>↗</i></button>
@@ -259,7 +259,7 @@ export default function Dashboard({ initialData, integrations }: { initialData: 
         <div className="modal-backdrop" onMouseDown={() => setShowGenerator(false)}>
           <section className="modal" onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowGenerator(false)}>×</button>
-            <p className="eyebrow">NOVA REMESSA</p>
+            <p className="eyebrow">Nova remessa</p>
             <h2>Gerar QR Codes</h2>
             <p className="muted">Campanha: {selectedCampaign.name}. Cada código é único, vale {selectedCampaign.pointsPerCode} ponto e só pode ser usado uma vez.</p>
             <label>Campanha<select value={selectedCampaign.id} onChange={(event) => { setSelectedCampaignId(event.target.value); setGeneratedCodes([]); setSelectedBatch(null); }}>
@@ -291,7 +291,7 @@ function TrialBanner({ data }: { data: DashboardData }) {
 }
 
 function Overview({ data, onGenerate }: { data: DashboardData; onGenerate: () => void }) {
-  return <div className="content"><section className="welcome"><div><div className="eyebrow">{data.organization.name.toUpperCase()}</div><h2>Painel operacional</h2><p>Dados reais do banco Render: clientes, pontos, recompensas e códigos de resgate.</p></div><button className="button button-light" onClick={onGenerate}>+ Nova remessa</button></section><section className="metrics"><Metric value={formatNumber(data.metrics.customers)} label="Clientes cadastrados" trend="Banco real" /><Metric value={formatNumber(data.metrics.points)} label="Pontos distribuídos" trend="Transações" /><Metric value={formatNumber(data.metrics.rewards)} label="Recompensas disponíveis" trend={data.program.rewardName} /><Metric value={formatNumber(data.metrics.activeCodes)} label="QR Codes ativos" trend={`${formatNumber(data.metrics.redeemedCodes)} usados`} /></section><section className="dashboard-grid"><article className="panel chart-panel"><div className="panel-header"><div><h3>Resumo da campanha</h3><p>{data.program.name}</p></div><button className="select-button">Ativa</button></div><div className="real-summary"><b>{data.program.pointsToReward}</b><span>pontos para liberar</span><strong>{data.program.rewardName}</strong></div><div className="chart-total"><b>{formatNumber(data.metrics.redeemedCodes)}</b><span>QR Codes resgatados até agora</span><em>{formatNumber(data.metrics.activeCodes)} ativos</em></div></article><article className="panel wallet-preview"><div className="panel-header"><div><h3>Seu cartão</h3><p>Prévia na Wallet</p></div><button className="link-button">Editar</button></div><PassCard data={data} /><p className="wallet-foot">A integração Apple/Google Wallet entra depois da base de campanha.</p></article></section><RecentActivity data={data} /></div>;
+  return <div className="content"><section className="welcome"><div><div className="eyebrow">{data.organization.name}</div><h2>Seu painel</h2><p>Acompanhe seus clientes, os pontos e os prêmios do programa.</p></div><button className="button button-light" onClick={onGenerate}>+ Nova remessa</button></section><section className="metrics"><Metric value={formatNumber(data.metrics.customers)} label="Clientes cadastrados" trend="No programa" /><Metric value={formatNumber(data.metrics.points)} label="Pontos distribuídos" trend="Até agora" /><Metric value={formatNumber(data.metrics.rewards)} label="Recompensas disponíveis" trend={data.program.rewardName} /><Metric value={formatNumber(data.metrics.activeCodes)} label="QR Codes ativos" trend={`${formatNumber(data.metrics.redeemedCodes)} usados`} /></section><section className="dashboard-grid"><article className="panel chart-panel"><div className="panel-header"><div><h3>Resumo da campanha</h3><p>{data.program.name}</p></div><button className="select-button">Ativa</button></div><div className="real-summary"><b>{data.program.pointsToReward}</b><span>pontos para liberar</span><strong>{data.program.rewardName}</strong></div><div className="chart-total"><b>{formatNumber(data.metrics.redeemedCodes)}</b><span>QR Codes resgatados até agora</span><em>{formatNumber(data.metrics.activeCodes)} ativos</em></div></article><article className="panel wallet-preview"><div className="panel-header"><div><h3>Seu cartão</h3><p>Prévia na Wallet</p></div><button className="link-button">Editar</button></div><PassCard data={data} /><p className="wallet-foot">A integração Apple/Google Wallet entra depois da base de campanha.</p></article></section><RecentActivity data={data} /></div>;
 }
 
 function Metric({ value, label, trend }: { value: string; label: string; trend: string }) { return <article className="metric"><p>{label}</p><div><b>{value}</b><span>{trend}</span></div></article>; }
@@ -336,7 +336,7 @@ function Codes({
     <div className="content">
       <section className="section-intro">
         <div>
-          <div className="eyebrow">ADESÃO E PONTUAÇÃO</div>
+          <div className="eyebrow">Adesão e pontuação</div>
           <h2>QR Codes</h2>
           <p>Campanha selecionada: <strong>{selectedCampaign.name}</strong>. Use o QR fixo para adesão e os QRs únicos para pontuação dessa campanha.</p>
         </div>
@@ -431,7 +431,7 @@ function Customers({ data, onRedeemReward, onRemoveCustomer }: { data: Dashboard
     setFound(body.customer ? { ...body.customer, points: 0, rewards: 0, updatedAt: null } : null);
     if (!body.customer) setSearchError("Nenhum cliente encontrado com este CPF.");
   }
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">BASE DE FIDELIDADE</div><h2>Clientes</h2><p>Clientes cadastrados por adesão ao programa.</p></div></section><article className="panel activity"><div className="panel-header"><div><h3>Buscar cliente</h3><p>Use o CPF para localizar um cadastro sem expor esse dado na lista.</p></div><div className="table-actions"><input value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" placeholder="CPF" /><button className="button button-dark" onClick={filterByCpf}>Filtrar</button><button className="link-button" onClick={() => { setCpf(""); setFound(undefined); setSearchError(""); }}>Limpar</button></div></div>{searchError && <p className="form-error">{searchError}</p>}<table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>PROGRESSO</th><th>STATUS</th><th>CADASTRO</th><th>AÇÃO</th></tr></thead><tbody>{visibleCustomers.length ? visibleCustomers.map((customer) => {
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">Base de fidelidade</div><h2>Clientes</h2><p>Clientes cadastrados por adesão ao programa.</p></div></section><article className="panel activity"><div className="panel-header"><div><h3>Buscar cliente</h3><p>Use o CPF para localizar um cadastro sem expor esse dado na lista.</p></div><div className="table-actions"><input value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" placeholder="Cpf" /><button className="button button-dark" onClick={filterByCpf}>Filtrar</button><button className="link-button" onClick={() => { setCpf(""); setFound(undefined); setSearchError(""); }}>Limpar</button></div></div>{searchError && <p className="form-error">{searchError}</p>}<table><thead><tr><th>CLIENTE</th><th>CONTATO</th><th>PROGRESSO</th><th>STATUS</th><th>CADASTRO</th><th>AÇÃO</th></tr></thead><tbody>{visibleCustomers.length ? visibleCustomers.map((customer) => {
     const status = customer.status === "inactive" ? "Inativo" : customer.rewards > 0 ? "Recompensa disponível" : "Ativo";
     return <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td className="date">{customer.phone || "—"}</td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className={customer.status === "inactive" ? "status" : customer.rewards > 0 ? "status ready" : "status"}>{status}</span></td><td className="date">{formatDate(customer.createdAt)}</td><td className="table-actions">{customer.status === "active" && customer.rewards > 0 && <button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button>}{customer.status === "active" && <button className="link-button danger" onClick={() => onRemoveCustomer(customer.id, customer.name)}>Excluir cliente</button>}</td></tr>;
   }) : <tr><td colSpan={6}>{found === null ? "Nenhum cliente encontrado." : "Nenhum cliente cadastrado ainda."}</td></tr>}</tbody></table></article></div>;
@@ -520,7 +520,7 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
     <div className="content">
       <section className="section-intro">
         <div>
-          <div className="eyebrow">CAMPANHAS</div>
+          <div className="eyebrow">Campanhas</div>
           <h2>Campanhas da loja</h2>
           <p>Selecione uma campanha para gerar o QR de adesão e os QR Codes de pontuação dela.</p>
         </div>
@@ -531,7 +531,7 @@ function Campaigns({ data, selectedCampaignId, onSelectCampaign, onCampaignsChan
         <Metric value={campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name || data.program.name} label="Selecionada para QR" trend="Adesão + pontuação" />
       </section>
       <article className="panel activity">
-        <div className="panel-header"><div><p className="eyebrow">CONFIGURE SUA OFERTA</p><h3>Criar nova campanha</h3><p>Defina a recompensa, os pontos necessários e até quando ela ficará disponível.</p></div></div>
+        <div className="panel-header"><div><p className="eyebrow">Configure sua oferta</p><h3>Criar nova campanha</h3><p>Defina a recompensa, os pontos necessários e até quando ela ficará disponível.</p></div></div>
         <div className="coupon-box">
           <label>Nome<input value={newCampaign.name} onChange={(event) => setNewCampaign((current) => ({ ...current, name: event.target.value }))} placeholder="Programa de Fidelidade" /></label>
           <label>Recompensa<input value={newCampaign.rewardName} onChange={(event) => setNewCampaign((current) => ({ ...current, rewardName: event.target.value }))} placeholder="Recompensa" /></label>
@@ -607,7 +607,7 @@ function ProfileSettings({ data, onSave }: {
     <div className="content">
       <section className="section-intro">
         <div>
-          <div className="eyebrow">CONTA DA EMPRESA</div>
+          <div className="eyebrow">Conta da empresa</div>
           <h2>Perfil</h2>
           <p>Atualize os dados da empresa, responsável, acesso e vendedor.</p>
         </div>
@@ -640,7 +640,7 @@ function ProfileSettings({ data, onSave }: {
 
 function Rewards({ data, onRedeemReward }: { data: DashboardData; onRedeemReward: (customerId: string, customerName: string) => void }) {
   const available = data.customers.filter((customer) => customer.rewards > 0);
-  return <div className="content"><section className="section-intro"><div><div className="eyebrow">RECOMPENSAS</div><h2>{data.program.rewardName}</h2><p>Quando o cliente retirar o prêmio na loja, confirme aqui para baixar a recompensa disponível.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section><article className="panel activity"><div className="panel-header"><div><h3>Clientes com recompensa disponível</h3><p>Confirme somente depois que o cliente receber o benefício.</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS ATUAIS</th><th>RECOMPENSAS</th><th>AÇÃO</th></tr></thead><tbody>{available.length ? available.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className="status ready">{customer.rewards}</span></td><td><button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button></td></tr>) : <tr><td colSpan={4}>Nenhuma recompensa disponível agora.</td></tr>}</tbody></table></article></div>;
+  return <div className="content"><section className="section-intro"><div><div className="eyebrow">Recompensas</div><h2>{data.program.rewardName}</h2><p>Quando o cliente retirar o prêmio na loja, confirme aqui para baixar a recompensa disponível.</p></div></section><section className="metrics"><Metric value={formatNumber(data.metrics.rewards)} label="Disponíveis" trend="Na base" /><Metric value={String(data.program.pointsToReward)} label="Pontos necessários" trend={data.program.name} /></section><article className="panel activity"><div className="panel-header"><div><h3>Clientes com recompensa disponível</h3><p>Confirme somente depois que o cliente receber o benefício.</p></div></div><table><thead><tr><th>CLIENTE</th><th>PONTOS ATUAIS</th><th>RECOMPENSAS</th><th>AÇÃO</th></tr></thead><tbody>{available.length ? available.map((customer) => <tr key={customer.id}><td><span className="avatar">{initials(customer.name)}</span><b>{customer.name}</b></td><td><strong>{customer.points} / {data.program.pointsToReward}</strong></td><td><span className="status ready">{customer.rewards}</span></td><td><button className="reward-action" onClick={() => onRedeemReward(customer.id, customer.name)}>Confirmar resgate</button></td></tr>) : <tr><td colSpan={4}>Nenhuma recompensa disponível agora.</td></tr>}</tbody></table></article></div>;
 }
 
 function CardDesigner({
@@ -727,7 +727,7 @@ function CardDesigner({
     <div className="content wallet-editor-page">
       <section className="section-intro">
         <div>
-          <div className="eyebrow">WALLET DESIGN SYSTEM</div>
+          <div className="eyebrow">Cartão da Wallet</div>
           <h2>Personalizar cartão</h2>
           <p>Uma configuração central. O Fidelizarei adapta a identidade para Apple Wallet e Google Wallet.</p>
         </div>

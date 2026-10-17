@@ -69,7 +69,7 @@ export default function CounterPage({ params }: { params: Promise<{ token: strin
       <section className="counter-side">
         <div className="counter-logo">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-fidelizarei.jpeg" alt="Fidelizarei" />
+          <img src="/brand/logo-light.png" alt="Fidelizarei" />
         </div>
         <div>
           {storeName && <p className="counter-store">{storeName}</p>}

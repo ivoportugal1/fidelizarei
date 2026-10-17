@@ -124,6 +124,8 @@ export default function BeefoodSettings({ initial }: { initial: Initial }) {
     <main className="bf-page">
       <header className="bf-top">
         <a className="bf-back" href="/dashboard">&larr; Voltar ao painel</a>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="bf-logo" src="/brand/logo-light.png" alt="Fidelizarei" />
         <div className="bf-head">
           <div>
             <p className="bf-eyebrow">Integrações</p>

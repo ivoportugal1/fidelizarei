@@ -93,11 +93,11 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     <main className="redeem-page">
       <section className="redeem-card">
         <div className="redeem-brand"><span>{organization[0]}</span> {organization.toUpperCase()}</div>
-        {!info && <><div className="redeem-illustration">⌛</div><p className="eyebrow">VALIDANDO QR CODE</p><h1>Carregando<br />seu resgate.</h1></>}
-        {isUnavailable && <><div className="success-icon">!</div><p className="eyebrow">QR CODE INDISPONÍVEL</p><h1>Este código já foi usado<br />ou não existe.</h1><p className="redeem-text">Cada QR Code é único e registra ponto uma única vez.</p><small>Código: {code}</small></>}
+        {!info && <><div className="redeem-illustration">⌛</div><p className="eyebrow">Validando QR code</p><h1>Carregando<br />seu resgate.</h1></>}
+        {isUnavailable && <><div className="success-icon">!</div><p className="eyebrow">Qr code indisponível</p><h1>Este código já foi usado<br />ou não existe.</h1><p className="redeem-text">Cada QR Code é único e registra ponto uma única vez.</p><small>Código: {code}</small></>}
         {info?.ok && info.status === "active" && !result && <>
           <div className="redeem-illustration">✓</div>
-          <p className="eyebrow">QR DE PONTUAÇÃO</p>
+          <p className="eyebrow">Qr de pontuação</p>
           <h1>Registrar ponto<br />em {program}.</h1>
           <p className="redeem-text">Este QR adiciona ponto ao ticket salvo na Wallet desta campanha.</p>
           {needsIdentification && <div className="redeem-form">
@@ -109,7 +109,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           {info.joinUrl && !info.joinWithCode && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
           <small>Código: {code}</small>
         </>}
-        {result && <><div className="success-icon">✓</div><p className="eyebrow">PONTO ADICIONADO</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Abra seu ticket na Wallet para acompanhar seus pontos."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(result.program_id || info?.programId || "")}`}>Atualizar Apple Wallet</a></div>{isAppleDevice && <p className="redeem-text">Você está no iPhone. A Apple Wallet atualiza o ticket desta campanha.</p>}{walletError && <p className="form-error">{walletError}</p>}</>}
+        {result && <><div className="success-icon">✓</div><p className="eyebrow">Ponto adicionado</p><h1>Boa. Seu saldo agora<br />é {result.points} de {result.points_to_reward}.</h1><p className="redeem-text">{result.rewards_available > 0 ? `Você tem ${result.rewards_available} recompensa disponível.` : "Abra seu ticket na Wallet para acompanhar seus pontos."}</p><div className="progress"><span style={{ width: `${Math.min(100, (result.points / result.points_to_reward) * 100)}%` }}></span></div><div className="wallet-actions">{!isAppleDevice && <button className="button button-dark" disabled={walletLoading} onClick={addGoogleWallet}>{walletLoading ? "Abrindo..." : "Adicionar ao Google Wallet"}</button>}<a className="button button-light" href={`/api/wallet/apple?programId=${encodeURIComponent(result.program_id || info?.programId || "")}`}>Atualizar Apple Wallet</a></div>{isAppleDevice && <p className="redeem-text">Você está no iPhone. A Apple Wallet atualiza o ticket desta campanha.</p>}{walletError && <p className="form-error">{walletError}</p>}</>}
       </section>
       <p className="redeem-footer">Fidelizarei — fidelidade sem aplicativo</p>
     </main>

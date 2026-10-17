@@ -102,11 +102,11 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
     <main className="redeem-page">
       <section className="redeem-card">
         <div className="redeem-brand"><span>{organization[0]}</span> {organization.toUpperCase()}</div>
-        {!info && <><div className="redeem-illustration">⌛</div><p className="eyebrow">ADESÃO</p><h1>Carregando<br />programa.</h1></>}
-        {info && !info.ok && <><div className="success-icon">!</div><p className="eyebrow">PROGRAMA INDISPONÍVEL</p><h1>Não encontramos<br />este programa.</h1></>}
+        {!info && <><div className="redeem-illustration">⌛</div><p className="eyebrow">Adesão</p><h1>Carregando<br />programa.</h1></>}
+        {info && !info.ok && <><div className="success-icon">!</div><p className="eyebrow">Programa indisponível</p><h1>Não encontramos<br />este programa.</h1></>}
         {info?.ok && !ready && <>
           <div className="redeem-illustration">♡</div>
-          <p className="eyebrow">ENTRAR NO PROGRAMA</p>
+          <p className="eyebrow">Entrar no programa</p>
           <h1>Cadastre-se em<br />{program}.</h1>
           <p className="redeem-text">Este QR é apenas para adesão. Ele não adiciona pontos.</p>
           <div className="redeem-form">
@@ -120,7 +120,7 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
         </>}
         {info?.ok && ready && <>
           <div className="success-icon">✓</div>
-          <p className="eyebrow">{pointResult === "pending" ? "REGISTRANDO PONTO" : pointResult === "added" ? "PONTO ADICIONADO" : joined ? "CADASTRO CONCLUÍDO" : "VOCÊ JÁ PARTICIPA"}</p>
+          <p className="eyebrow">{pointResult === "pending" ? "Registrando ponto" : pointResult === "added" ? "Ponto adicionado" : joined ? "Cadastro concluído" : "Você já participa"}</p>
           <h1>{pointResult === "pending" ? <>Cadastro feito.<br />Registrando seu ponto...</> : pointResult === "added" ? <>Cadastro feito e<br />1 ponto registrado.</> : <>Seu cartão está<br />pronto para a Wallet.</>}</h1>
           <p className="redeem-text">{pointResult === "pending"
             ? "Só um instante."
