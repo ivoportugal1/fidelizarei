@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { CPF_ERROR_MESSAGE, formatCpf, isValidCpf, normalizeCpf } from "@/lib/cpf";
 
 type CodeInfo = {
   ok: boolean;
@@ -35,7 +36,13 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     setIsAppleDevice(/iPhone|iPad|iPod/i.test(navigator.userAgent));
   }, []);
 
+  const cpfLooksWrong = normalizeCpf(cpf).length === 11 && !isValidCpf(cpf);
+
   async function redeem() {
+    if (needsIdentification && !isValidCpf(cpf)) {
+      setError(CPF_ERROR_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError("");
     const response = await fetch(`/api/redeem/${encodeURIComponent(code)}`, {
@@ -51,7 +58,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
         setError("Informe o CPF usado na adesão para localizar seu ticket.");
       } else if (body.error === "invalid_cpf") {
         setNeedsIdentification(true);
-        setError("Informe um CPF válido.");
+        setError(CPF_ERROR_MESSAGE);
       } else if (body.error === "customer_not_enrolled" || body.error === "join_required") {
         setError("Este cadastro não participa desta campanha. Escaneie o QR de adesão desta campanha primeiro.");
       } else {
@@ -101,7 +108,8 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
           <h1>Registrar ponto<br />em {program}.</h1>
           <p className="redeem-text">Este QR adiciona ponto ao ticket salvo na Wallet desta campanha.</p>
           {needsIdentification && <div className="redeem-form">
-            <input placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" required />
+            <input placeholder="CPF (000.000.000-00)" value={cpf} onChange={(event) => setCpf(formatCpf(event.target.value))} inputMode="numeric" autoComplete="off" maxLength={14} aria-invalid={cpfLooksWrong} required />
+            {cpfLooksWrong && <small className="form-error">{CPF_ERROR_MESSAGE}</small>}
           </div>}
           {error && <p className="form-error">{error}</p>}
           <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && !cpf.trim())} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
