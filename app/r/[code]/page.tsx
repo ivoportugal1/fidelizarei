@@ -24,6 +24,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
   const [isAppleDevice, setIsAppleDevice] = useState(false);
   const [needsIdentification, setNeedsIdentification] = useState(false);
   const [cpf, setCpf] = useState("");
+  const [enrollOffer, setEnrollOffer] = useState(false);
 
   useEffect(() => {
     fetch(`/api/redeem/${encodeURIComponent(code)}`)
@@ -38,7 +39,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
 
   const cpfLooksWrong = normalizeCpf(cpf).length === 11 && !isValidCpf(cpf);
 
-  async function redeem() {
+  async function redeem(enroll = false) {
     if (needsIdentification && !isValidCpf(cpf)) {
       setError(CPF_ERROR_MESSAGE);
       return;
@@ -48,7 +49,7 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
     const response = await fetch(`/api/redeem/${encodeURIComponent(code)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cpf }),
+      body: JSON.stringify({ cpf, enroll }),
     });
     const body = await response.json();
     setLoading(false);
@@ -59,8 +60,22 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
       } else if (body.error === "invalid_cpf") {
         setNeedsIdentification(true);
         setError(CPF_ERROR_MESSAGE);
+      } else if (body.error === "cpf_not_found") {
+        setNeedsIdentification(true);
+        setEnrollOffer(false);
+        setError("Não encontramos esse CPF nesta loja. Confira os números ou faça a adesão primeiro.");
+      } else if (body.error === "not_enrolled_in_campaign") {
+        setNeedsIdentification(true);
+        setEnrollOffer(true);
+        setError(`Seu CPF já está cadastrado nesta loja, mas ainda não na campanha "${body.programName || info?.programName || "desta loja"}".`);
       } else if (body.error === "customer_not_enrolled" || body.error === "join_required") {
-        setError("Este cadastro não participa desta campanha. Escaneie o QR de adesão desta campanha primeiro.");
+        if (enroll) {
+          setEnrollOffer(false);
+          setError("Este cadastro não participa desta campanha. Escaneie o QR de adesão desta campanha primeiro.");
+        } else {
+          setEnrollOffer(true);
+          setError(`Você já tem cadastro nesta loja, mas ainda não na campanha "${info?.programName || "desta loja"}".`);
+        }
       } else {
         setError("Este QR Code não está disponível ou já foi usado.");
       }
@@ -112,7 +127,8 @@ export default function RedeemPage({ params }: { params: Promise<{ code: string 
             {cpfLooksWrong && <small className="form-error">{CPF_ERROR_MESSAGE}</small>}
           </div>}
           {error && <p className="form-error">{error}</p>}
-          <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && !cpf.trim())} onClick={redeem}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
+          {enrollOffer && <button className="button button-dark redeem-button" disabled={loading} onClick={() => redeem(true)}>Entrar na campanha e ganhar o ponto</button>}
+          <button className="button button-coral redeem-button" disabled={loading || (needsIdentification && !cpf.trim())} onClick={() => redeem(false)}>{loading ? "Registrando..." : needsIdentification ? "Localizar ticket e adicionar ponto" : "Adicionar ponto"}</button>
           {info.joinUrl && info.joinWithCode && <a className="button button-light redeem-button" href={`${info.joinUrl}?code=${encodeURIComponent(code)}`}>Primeira vez? Cadastre-se e ganhe o ponto</a>}
           {info.joinUrl && !info.joinWithCode && <a className="button button-light redeem-button" href={info.joinUrl}>Fazer adesão primeiro</a>}
           <small>Código: {code}</small>

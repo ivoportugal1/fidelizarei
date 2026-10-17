@@ -29,12 +29,21 @@ export async function GET(_: Request, { params }: { params: Promise<{ code: stri
   } catch { return errorResponse("service_unavailable", 503); }
 }
 
+// Adds the customer to the campaign of the QR (idempotent). Only customers of the same store.
+async function enrollInCampaign(customerId: string, organizationId: string, programId: string) {
+  const customer = await query("select 1 from customers where id = $1 and organization_id = $2 and status = 'active'", [customerId, organizationId]);
+  if (!customer.rowCount) return false;
+  await query(`insert into loyalty_balances (customer_id, program_id, points, rewards_available)
+               values ($1, $2, 0, 0) on conflict (customer_id, program_id) do nothing`, [customerId, programId]);
+  return true;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     await ensureLoyaltySchema();
     const session = readCustomerSession((await cookies()).get("fideliza_customer")?.value);
     const { code } = await params;
-    const identity = await request.json().catch(() => ({})) as { cpf?: string };
+    const identity = await request.json().catch(() => ({})) as { cpf?: string; enroll?: boolean };
     let customerId = session?.customerId;
 
     if (!customerId && identity.cpf?.trim()) {
@@ -51,9 +60,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
           and c.status = 'active'
         limit 1`, [codeRecord.organization_id, codeRecord.program_id, cpfHash]);
       customerId = customer.rows[0]?.id;
+
+      if (!customerId) {
+        // The CPF may exist in this store but belong to another campaign.
+        const inStore = await query<{ id: string }>(
+          "select id from customers where organization_id = $1 and cpf_hash = $2 and status = 'active' limit 1",
+          [codeRecord.organization_id, cpfHash],
+        );
+        if (!inStore.rows[0]) return errorResponse("cpf_not_found", 404);
+        if (identity.enroll !== true) {
+          return NextResponse.json({
+            ok: false,
+            error: "not_enrolled_in_campaign",
+            programName: codeRecord.program_name,
+            joinUrl: `/join/${codeRecord.program_id}`,
+          }, { status: 403 });
+        }
+        customerId = inStore.rows[0].id;
+      }
     }
 
     if (!customerId) return errorResponse("identity_required", 401);
+
+    if (identity.enroll === true) {
+      const codeRecord = await getCodeForEnrollment(code);
+      if (codeRecord && codeRecord.status === "active") await enrollInCampaign(customerId, codeRecord.organization_id, codeRecord.program_id);
+    }
     const result = await redeemCode(code, customerId);
     const response = NextResponse.json({ ok: true, ...result });
     if (!session) {
@@ -68,7 +100,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "unable_to_redeem";
-    const known = ["invalid_code", "code_already_used", "code_expired", "code_belongs_to_another_customer", "program_not_active", "customer_not_enrolled"];
+    const known = ["cpf_not_found", "invalid_code", "code_already_used", "code_expired", "code_belongs_to_another_customer", "program_not_active", "customer_not_enrolled"];
     return errorResponse(known.includes(message) ? message : "unable_to_redeem", message === "customer_not_enrolled" ? 403 : known.includes(message) ? 409 : 500);
   }
 }
