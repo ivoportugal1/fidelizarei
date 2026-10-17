@@ -172,7 +172,6 @@ h1, h2 { letter-spacing: -.035em; }
 .apple-simple-progress .progress-marks span svg { width: 100%; height: 100%; }
 .apple-simple-progress { background-image: linear-gradient(rgba(255,255,255,.06), rgba(255,255,255,.06)); }
 
-/* Point symbols: outline style, same as the generated Apple strip. */
-.apple-simple-progress .progress-marks svg { fill: none; stroke: currentColor; stroke-width: 1.8; }
-.apple-simple-progress .progress-marks span.done svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
-.progress-marks:not(.universal) .done svg { fill: none; }
+/* Point symbols: Phosphor Bold glyphs are filled shapes, colored with currentColor. */
+.progress-marks:not(.universal) svg { fill: currentColor; stroke: none; }
+.progress-marks:not(.universal) .done svg { fill: currentColor; stroke: none; }

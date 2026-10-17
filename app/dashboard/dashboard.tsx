@@ -1,7 +1,7 @@
 "use client";
 import { NavIcon } from "./nav-icons";
 import { formatCpf } from "@/lib/cpf";
-import { progressIconPaths } from "@/lib/wallet-icons";
+import { PROGRESS_ICON_GRID, progressIconPaths } from "@/lib/wallet-icons";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
@@ -844,7 +844,7 @@ function UniversalMark({ done }: { done: boolean }) {
 function PointIcon({ theme }: { theme: PointTheme }) {
   const paths = progressIconPaths[theme];
   if (!paths) return null;
-  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths.map((d) => <path key={d} d={d} />)}</svg>;
+  return <svg viewBox={`0 0 ${PROGRESS_ICON_GRID} ${PROGRESS_ICON_GRID}`} aria-hidden="true">{paths.map((d) => <path key={d} d={d} />)}</svg>;
 }
 
 function FixedFidelizareiLogo() {

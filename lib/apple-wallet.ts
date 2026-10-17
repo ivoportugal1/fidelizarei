@@ -5,7 +5,7 @@ import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import sharp from "sharp";
 import { query } from "./database";
-import { progressIconPaths } from "./wallet-icons";
+import { PROGRESS_ICON_GRID, progressIconPaths } from "./wallet-icons";
 import { BRAND_WALLET_COLORS, defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 const APPLE_WWDR_G4_PEM = `-----BEGIN CERTIFICATE-----
@@ -194,10 +194,9 @@ function progressIconSvg(input: {
   }
 
   const paths = progressIconPaths[theme] ?? progressIconPaths.cafeteria;
-  // Outline only: earned = bold accent outline, missing = thinner, dimmed outline.
-  const stroke = earned ? earnedColor : unearnedColor;
-  const strokeWidth = earned ? 2.3 : 1.8;
-  return `<g transform="translate(${x} ${y}) scale(${size / 24})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+  // Phosphor Bold glyphs (filled paths): earned = accent color, missing = dimmed (see opacity in the strip).
+  const color = earned ? earnedColor : unearnedColor;
+  return `<g transform="translate(${x} ${y}) scale(${size / PROGRESS_ICON_GRID})" fill="${color}">
     ${paths.map((path) => `<path d="${path}"/>`).join("")}
   </g>`;
 }
