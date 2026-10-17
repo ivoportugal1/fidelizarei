@@ -1,6 +1,7 @@
 "use client";
 import { NavIcon } from "./nav-icons";
 import { formatCpf } from "@/lib/cpf";
+import { progressIconPaths } from "@/lib/wallet-icons";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import QRCode from "qrcode";
@@ -841,15 +842,9 @@ function UniversalMark({ done }: { done: boolean }) {
 }
 
 function PointIcon({ theme }: { theme: PointTheme }) {
-  if (theme === "cafeteria") return <svg viewBox="0 0 24 24"><path d="M4 8h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M16 10h2.2a2.3 2.3 0 0 1 0 4.6H16"/><path d="M7 5h6"/></svg>;
-  if (theme === "acaiteria") return <svg viewBox="0 0 24 24"><path d="M5 9h14l-1.5 8.5H6.5L5 9Z"/><path d="M8 9c.4-2 1.8-3 4-3s3.6 1 4 3"/><path d="M9 13h6"/></svg>;
-  if (theme === "sorveteria") return <svg viewBox="0 0 24 24"><path d="M8 10a4 4 0 0 1 8 0"/><path d="M7 10h10l-5 10-5-10Z"/><path d="M10 14h4"/></svg>;
-  if (theme === "pizzaria") return <svg viewBox="0 0 24 24"><path d="M6 20 18 4c-4 0-8 1.5-12 4v12Z"/><path d="M9 11h.1"/><path d="M11 15h.1"/><path d="M13 9h.1"/></svg>;
-  if (theme === "hamburgueria") return <svg viewBox="0 0 24 24"><path d="M5 11c.5-3 3-5 7-5s6.5 2 7 5H5Z"/><path d="M5 14h14"/><path d="M6 17h12"/><path d="M8 11h.1M12 9h.1M16 11h.1"/></svg>;
-  if (theme === "padaria") return <svg viewBox="0 0 24 24"><path d="M5 13c0-4 3-7 7-7s7 3 7 7c0 3-2.5 5-7 5s-7-2-7-5Z"/><path d="M9 8c-1 2-1 4 0 6M13 7c-1 2-1 5 0 8"/></svg>;
-  if (theme === "barbearia") return <svg viewBox="0 0 24 24"><path d="m5 5 14 14"/><path d="m19 5-7 7"/><circle cx="6" cy="17" r="2.5"/><circle cx="6" cy="7" r="2.5"/></svg>;
-  if (theme === "petshop") return <svg viewBox="0 0 24 24"><path d="M8 13c2-2 6-2 8 0l1 1.5c1.5 2.2 0 4.5-2.5 3.8a9 9 0 0 0-5 0C7 19 5.5 16.7 7 14.5L8 13Z"/><circle cx="7" cy="9" r="1.7"/><circle cx="11" cy="7" r="1.7"/><circle cx="15" cy="7" r="1.7"/><circle cx="19" cy="9" r="1.7"/></svg>;
-  return null;
+  const paths = progressIconPaths[theme];
+  if (!paths) return null;
+  return <svg viewBox="0 0 24 24" aria-hidden="true">{paths.map((d) => <path key={d} d={d} />)}</svg>;
 }
 
 function FixedFidelizareiLogo() {

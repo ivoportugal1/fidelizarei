@@ -5,6 +5,7 @@ import forge from "node-forge";
 import { PKPass } from "passkit-generator";
 import sharp from "sharp";
 import { query } from "./database";
+import { progressIconPaths } from "./wallet-icons";
 import { BRAND_WALLET_COLORS, defaultWalletSettings, getWalletCardSettings, type WalletCardSettings } from "./wallet-settings";
 
 const APPLE_WWDR_G4_PEM = `-----BEGIN CERTIFICATE-----
@@ -155,53 +156,6 @@ function progressText(theme: string, current: number, total: number) {
   return Array.from({ length: limit }).map((_, index) => index < current ? "●" : "○").join(" ");
 }
 
-const progressIconPaths: Record<string, string[]> = {
-  cafeteria: [
-    "M4 8h11.5v5.3a4.8 4.8 0 0 1-4.8 4.8H8.8A4.8 4.8 0 0 1 4 13.3V8Z",
-    "M15.5 10h2.1a2.3 2.3 0 0 1 0 4.6h-2.1",
-    "M7 5.2h6",
-  ],
-  acaiteria: [
-    "M5 9h14l-1.5 8.5H6.5L5 9Z",
-    "M8 9c.4-2.1 1.8-3.2 4-3.2s3.6 1.1 4 3.2",
-    "M8.8 13h6.4",
-  ],
-  sorveteria: [
-    "M8 10a4 4 0 0 1 8 0",
-    "M7 10h10l-5 10-5-10Z",
-    "M10 14h4",
-  ],
-  padaria: [
-    "M5 13c0-4 3-7 7-7s7 3 7 7c0 3-2.5 5-7 5s-7-2-7-5Z",
-    "M9 8c-1 2-1 4 0 6",
-    "M13 7c-1 2-1 5 0 8",
-  ],
-  pizzaria: [
-    "M6 20 18 4c-4 0-8 1.5-12 4v12Z",
-    "M9 11h.1",
-    "M11 15h.1",
-    "M13 9h.1",
-  ],
-  hamburgueria: [
-    "M5 11c.5-3 3-5 7-5s6.5 2 7 5H5Z",
-    "M5 14h14",
-    "M6 17h12",
-    "M8 11h.1M12 9h.1M16 11h.1",
-  ],
-  barbearia: [
-    "m5 5 14 14",
-    "m19 5-7 7",
-    "M8.5 17a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z",
-    "M8.5 7a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z",
-  ],
-  petshop: [
-    "M8 13c2-2 6-2 8 0l1 1.5c1.5 2.2 0 4.5-2.5 3.8a9 9 0 0 0-5 0C7 19 5.5 16.7 7 14.5L8 13Z",
-    "M8.7 9A1.7 1.7 0 1 1 5.3 9a1.7 1.7 0 0 1 3.4 0Z",
-    "M12.7 7A1.7 1.7 0 1 1 9.3 7a1.7 1.7 0 0 1 3.4 0Z",
-    "M16.7 7a1.7 1.7 0 1 1-3.4 0 1.7 1.7 0 0 1 3.4 0Z",
-    "M20.7 9a1.7 1.7 0 1 1-3.4 0 1.7 1.7 0 0 1 3.4 0Z",
-  ],
-};
 
 function normalizedProgressTheme(theme: string) {
   const aliases: Record<string, string> = {
@@ -240,10 +194,10 @@ function progressIconSvg(input: {
   }
 
   const paths = progressIconPaths[theme] ?? progressIconPaths.cafeteria;
+  // Outline only: earned = bold accent outline, missing = thinner, dimmed outline.
   const stroke = earned ? earnedColor : unearnedColor;
-  const fill = earned ? earnedColor : "transparent";
-  const strokeWidth = earned ? 1.7 : 2.2;
-  return `<g transform="translate(${x} ${y}) scale(${size / 24})" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
+  const strokeWidth = earned ? 2.3 : 1.8;
+  return `<g transform="translate(${x} ${y}) scale(${size / 24})" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">
     ${paths.map((path) => `<path d="${path}"/>`).join("")}
   </g>`;
 }
@@ -320,7 +274,7 @@ export async function buildAppleStripImages(input: {
   const rows = total > 10 ? 2 : 1;
   const perRow = Math.ceil(total / rows);
   const iconGap = perRow > 8 ? 16 : 30;
-  const iconSize = Math.floor(Math.min(rows === 1 ? 150 : 110, (width - 150 - iconGap * (perRow - 1)) / perRow));
+  const iconSize = Math.floor(Math.min(rows === 1 ? 190 : 120, (width - 150 - iconGap * (perRow - 1)) / perRow));
   const rowGap = 26;
   const blockHeight = rows * iconSize + (rows - 1) * rowGap;
   const startY = Math.round((height - blockHeight) / 2);
