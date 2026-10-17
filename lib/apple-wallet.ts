@@ -613,7 +613,7 @@ Membro desde ${formatMemberSince(new Date(context.customer_created_at))}`,
       // Apple requires contact information for the organization that signed the pass.
       key: "back_issued_by",
       label: "Emitido por",
-      value: "Fidelizarei\ncontato@fidelizarei.com.br",
+      value: "Fidelizarei\nfidelizarei@gmail.com",
     },
   ];
 

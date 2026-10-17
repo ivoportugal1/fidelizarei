@@ -40,7 +40,7 @@ export default function SignupPage() {
       <form className="login-card signup-card" onSubmit={submit}>
         <a className="brand" href="/">Fidelizarei</a>
         <p className="eyebrow">ESCOLHA SEU PLANO</p>
-        <h1>Criar conta</h1>
+        <h1>Cadastre-se</h1>
         <p className="muted">Escolha mensal ou anual. Se recebeu um cupom da Fidelizarei, aplique antes de criar a conta.</p>
         <PlanOptions selectedPlan={billingInterval} onSelect={setBillingInterval} compact />
         <label>Cupom de desconto <input value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Digite seu cupom, se tiver" autoComplete="off" /></label>
