@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { CPF_ERROR_MESSAGE, formatCpf, isValidCpf, normalizeCpf } from "@/lib/cpf";
 
 type JoinInfo = {
   ok: boolean;
@@ -41,7 +42,13 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
     setIsAppleDevice(/iPhone|iPad|iPod/i.test(navigator.userAgent));
   }, []);
 
+  const cpfLooksWrong = normalizeCpf(cpf).length === 11 && !isValidCpf(cpf);
+
   async function submit() {
+    if (!isValidCpf(cpf)) {
+      setError(CPF_ERROR_MESSAGE);
+      return;
+    }
     setLoading(true);
     setError("");
     const response = await fetch(`/api/join/${encodeURIComponent(programId)}`, {
@@ -55,7 +62,7 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
       setError(body.error === "invalid_name"
         ? "Informe nome e sobrenome."
         : body.error === "invalid_cpf"
-          ? "Informe um CPF válido."
+          ? CPF_ERROR_MESSAGE
           : body.error === "invalid_phone"
           ? "Informe um telefone válido."
           : body.error === "phone_already_registered"
@@ -112,7 +119,8 @@ export default function JoinPage({ params }: { params: Promise<{ programId: stri
           <div className="redeem-form">
             <input placeholder="Nome" value={firstName} onChange={(event) => setFirstName(event.target.value)} required />
             <input placeholder="Sobrenome" value={lastName} onChange={(event) => setLastName(event.target.value)} required />
-            <input placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" required />
+            <input placeholder="CPF (000.000.000-00)" value={cpf} onChange={(event) => setCpf(formatCpf(event.target.value))} inputMode="numeric" autoComplete="off" maxLength={14} aria-invalid={cpfLooksWrong} required />
+            {cpfLooksWrong && <small className="form-error">{CPF_ERROR_MESSAGE}</small>}
             <input placeholder="WhatsApp com DDD (opcional)" value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" />
           </div>
           {error && <p className="form-error">{error}</p>}
